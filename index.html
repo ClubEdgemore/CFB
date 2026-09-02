@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>2026 Football Schedule Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --stone:#EFEAE1;
+    --card:#FFFFFF;
+    --ink:#1B2333;
+    --ink-soft:#5B6472;
+    --line:#DDD5C8;
+    --win:#2F6F4E;
+    --win-bg:#E4EFE8;
+    --loss:#A93F32;
+    --loss-bg:#F3E5E2;
+    --focus:#2F6F4E;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--stone);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:900px;margin:0 auto;padding:32px 20px 80px;}
+
+  .masthead{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:14px;
+    margin-bottom:22px;
+    flex-wrap:wrap;
+  }
+  .masthead h1{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:800;
+    font-size:34px;
+    letter-spacing:0.2px;
+    margin:0;
+    line-height:1;
+  }
+  .masthead .season{
+    font-size:14px;
+    color:var(--ink-soft);
+    font-weight:500;
+  }
+
+  .tabs{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:20px;
+  }
+  .tab{
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 14px 9px 12px;
+    border-radius:3px 3px 0 0;
+    border:1px solid var(--line);
+    border-bottom:none;
+    background:#F7F3EC;
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:600;
+    font-size:17px;
+    color:var(--ink-soft);
+    cursor:pointer;
+    user-select:none;
+  }
+  .tab .dot{width:10px;height:10px;border-radius:50%;flex:none;}
+  .tab.active{
+    background:var(--card);
+    color:var(--ink);
+    box-shadow:0 3px 0 var(--card);
+  }
+  .tab .close{
+    font-size:15px;
+    color:var(--ink-soft);
+    margin-left:2px;
+    line-height:1;
+  }
+  .tab .close:hover{color:var(--loss);}
+  .tab-add{
+    padding:9px 14px;
+    border-radius:3px 3px 0 0;
+    border:1px dashed var(--line);
+    background:transparent;
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .tab-add:hover{color:var(--ink);border-color:var(--ink-soft);}
+
+  .board{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:0 6px 6px 6px;
+  }
+
+  .board-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .record{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:22px;
+    font-weight:700;
+  }
+  .record .win{color:var(--win);}
+  .record .loss{color:var(--loss);}
+  .record-label{font-size:12px;color:var(--ink-soft);font-weight:500;margin-left:6px;}
+
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;
+    font-size:12px;
+    font-weight:600;
+    color:var(--ink-soft);
+    padding:10px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  th.num, td.num{width:34px;text-align:center;}
+  tbody tr{border-bottom:1px dashed var(--line);}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr.bye{background:#FAF8F3;}
+  td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
+
+  .wk{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:22px;
+    font-weight:700;
+    color:var(--ink-soft);
+    text-align:center;
+  }
+  .date{white-space:nowrap;color:var(--ink);}
+  .date .dow{color:var(--ink-soft);font-size:12.5px;display:block;}
+
+  .opp{display:flex;align-items:center;gap:8px;}
+  .opp .site-tag{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--ink-soft);
+    width:20px;
+  }
+  .opp .name{font-weight:600;}
+  .opp .place{display:block;font-size:12px;color:var(--ink-soft);font-weight:400;}
+
+  .editable{
+    cursor:text;
+    border-radius:4px;
+    padding:3px 6px;
+    margin:-3px -6px;
+  }
+  .editable:hover{background:#F3EFE6;}
+  .editable input, .editable select{
+    font-family:inherit;
+    font-size:14px;
+    border:1px solid var(--focus);
+    border-radius:4px;
+    padding:3px 5px;
+    width:100%;
+    outline:none;
+  }
+  .tv{color:var(--ink-soft);}
+
+  .result{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 9px;
+    border-radius:20px;
+    font-weight:700;
+    font-size:13px;
+    font-family:'Barlow Condensed',sans-serif;
+  }
+  .result.W{background:var(--win-bg);color:var(--win);}
+  .result.L{background:var(--loss-bg);color:var(--loss);}
+  .result.pending{background:#EFEAE1;color:var(--ink-soft);font-weight:600;}
+
+  .row-actions{width:26px;text-align:center;}
+  .del-row{
+    opacity:0;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-size:15px;
+  }
+  tbody tr:hover .del-row{opacity:1;}
+  .del-row:hover{color:var(--loss);}
+
+  .panel{
+    border-top:1px solid var(--line);
+    padding:16px 18px 18px;
+    background:#FBF9F5;
+    border-radius:0 0 6px 6px;
+  }
+  .panel h3{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:19px;
+    margin:0 0 12px;
+  }
+  .grid-row{
+    display:grid;
+    grid-template-columns:1.1fr 0.8fr 0.9fr 0.9fr 1fr auto;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .grid-row input, .grid-row select{
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:5px;
+    width:100%;
+    background:#fff;
+  }
+  .grid-row input:focus, .grid-row select:focus{outline:2px solid var(--focus);outline-offset:1px;}
+  .small-btn{
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    font-weight:600;
+    padding:7px 12px;
+    border-radius:5px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:#fff;
+    cursor:pointer;
+  }
+  .small-btn.ghost{background:transparent;color:var(--ink);}
+  .small-btn.danger{border-color:var(--loss);color:var(--loss);background:transparent;}
+  .panel-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+
+  .new-team-form{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+  .new-team-form input[type="text"]{
+    padding:8px 10px;font-size:14px;border:1px solid var(--line);border-radius:5px;font-family:'Inter',sans-serif;
+  }
+  .new-team-form input[type="color"]{
+    width:36px;height:36px;padding:2px;border:1px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;
+  }
+
+  .empty{padding:40px 18px;text-align:center;color:var(--ink-soft);}
+  .footnote{margin-top:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
+  .footnote code{background:#F3EFE6;padding:1px 5px;border-radius:3px;}
+
+  @media (max-width:640px){
+    .grid-row{grid-template-columns:1fr 1fr;}
+    thead th:nth-child(5), td:nth-child(5){display:none;}
+    .masthead h1{font-size:26px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <h1>Football Schedule Tracker</h1>
+    <div class="season">2026 season</div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="board" id="board"></div>
+
+  <div class="footnote" id="footnote">
+    Scores, times, and TV info are stored on this device and don't update automatically. Click any Time, TV, or Result cell to edit it as new info comes out, or paste updated info back into this chat and ask Claude to refresh the file.
+    <span id="connectLink" style="text-decoration:underline;cursor:pointer;">Connect nightly updates &rarr;</span>
+  </div>
+  <div id="firebasePanel" class="panel" style="display:none;margin-top:10px;">
+    <h3>Connect to your Firebase project</h3>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">
+      Paste the Firebase web config from your project settings (Project settings &rarr; General &rarr; Your apps &rarr; SDK setup). This is safe to store here &mdash; it only grants read access, and only for teams your nightly Cloud Function writes to.
+    </p>
+    <textarea id="fbConfigInput" rows="5" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border:1px solid var(--line);border-radius:5px;" placeholder='{"apiKey":"...","projectId":"...","...":"..."}'></textarea>
+    <div class="panel-actions">
+      <button class="small-btn" id="saveFbConfigBtn">Connect</button>
+      <button class="small-btn ghost" id="cancelFbConfigBtn">Cancel</button>
+      <button class="small-btn danger" id="disconnectFbBtn">Disconnect</button>
+    </div>
+    <div id="fbStatus" style="font-size:12.5px;margin-top:8px;color:var(--ink-soft);"></div>
+  </div>
+</div>
+
+<script>
+const AUBURN_ID = 'auburn';
+const DEFAULT_TEAMS = [
+  {
+    id: AUBURN_ID,
+    name: 'Auburn Tigers',
+    color: '#03244E',
+    games: [
+      {id:'g1', week:'1', date:'2026-09-05', opponent:'Baylor', site:'N', place:'Mercedes-Benz Stadium, Atlanta', time:'3:30 PM ET', tv:'ABC', result:'', score:''},
+      {id:'g2', week:'2', date:'2026-09-12', opponent:'Southern Miss', site:'H', place:'Jordan-Hare Stadium', time:'7:30 PM ET', tv:'ESPNU/SECN', result:'', score:''},
+      {id:'g3', week:'3', date:'2026-09-19', opponent:'Florida', site:'H', place:'Jordan-Hare Stadium', time:'7:00 PM ET', tv:'ESPN', result:'', score:''},
+      {id:'g4', week:'4', date:'2026-09-26', opponent:'Vanderbilt', site:'H', place:'Jordan-Hare Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'g5', week:'5', date:'2026-10-03', opponent:'Tennessee', site:'A', place:'Neyland Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'g6', week:'BYE', date:'2026-10-10', opponent:'Open date', site:'-', place:'', time:'', tv:'', result:'', score:'', bye:true},
+      {id:'g7', week:'7', date:'2026-10-17', opponent:'Georgia', site:'A', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'g8', week:'8', date:'2026-10-24', opponent:'LSU', site:'H', place:'Jordan-Hare Stadium', time:'12:00 PM ET', tv:'ABC/ESPN', result:'', score:''},
+      {id:'g9', week:'9', date:'2026-10-31', opponent:'Ole Miss', site:'A', place:'Vaught-Hemingway Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'g10', week:'10', date:'2026-11-07', opponent:'Arkansas', site:'H', place:'Jordan-Hare Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'g11', week:'11', date:'2026-11-14', opponent:'Mississippi State', site:'A', place:'Davis Wade Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'g12', week:'12', date:'2026-11-21', opponent:'Samford', site:'H', place:'Jordan-Hare Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'g13', week:'13', date:'2026-11-28', opponent:'Alabama', site:'A', place:'Bryant-Denny Stadium (Iron Bowl)', time:'TBA', tv:'TBA', result:'', score:''}
+    ]
+  },
+  {
+    id: 'georgia-tech',
+    name: 'Georgia Tech Yellow Jackets',
+    color: '#B3A369',
+    games: [
+      {id:'t1', week:'1', date:'2026-09-03', opponent:'Colorado', site:'H', place:'Bobby Dodd Stadium', time:'8:00 PM ET', tv:'ESPN', result:'', score:''},
+      {id:'t2', week:'2', date:'2026-09-12', opponent:'Tennessee', site:'H', place:'Bobby Dodd Stadium', time:'7:00 PM ET', tv:'ESPN', result:'', score:''},
+      {id:'t3', week:'3', date:'2026-09-19', opponent:'Mercer', site:'H', place:'Bobby Dodd Stadium', time:'12:00 PM ET', tv:'ACC Network', result:'', score:''},
+      {id:'t4', week:'4', date:'2026-09-26', opponent:'Stanford', site:'A', place:'Stanford Stadium', time:'10:30 PM ET', tv:'ESPN', result:'', score:''},
+      {id:'t5', week:'BYE', date:'2026-10-03', opponent:'Open date', site:'-', place:'', time:'', tv:'', result:'', score:'', bye:true},
+      {id:'t6', week:'6', date:'2026-10-10', opponent:'Duke', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'t7', week:'7', date:'2026-10-17', opponent:'Virginia Tech', site:'A', place:'Lane Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'t8', week:'8', date:'2026-10-21', opponent:'Pitt', site:'A', place:'Acrisure Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'t9', week:'9', date:'2026-10-24', opponent:'Boston College', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'t10', week:'10', date:'2026-11-07', opponent:'Louisville', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'t11', week:'11', date:'2026-11-14', opponent:'Clemson', site:'A', place:'Memorial Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'t12', week:'12', date:'2026-11-21', opponent:'Wake Forest', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'t13', week:'13', date:'2026-11-28', opponent:'Georgia', site:'A', place:'Sanford Stadium (Clean, Old-Fashioned Hate)', time:'TBA', tv:'TBA', result:'', score:''}
+    ]
+  },
+  {
+    id: 'georgia',
+    name: 'Georgia Bulldogs',
+    color: '#BA0C2F',
+    games: [
+      {id:'u1', week:'1', date:'2026-09-05', opponent:'Tennessee State', site:'H', place:'Sanford Stadium', time:'3:00 PM ET', tv:'ESPN+/SECN+', result:'', score:''},
+      {id:'u2', week:'2', date:'2026-09-12', opponent:'Western Kentucky', site:'H', place:'Sanford Stadium', time:'12:45 PM ET', tv:'SEC Network', result:'', score:''},
+      {id:'u3', week:'3', date:'2026-09-19', opponent:'Arkansas', site:'A', place:'Razorback Stadium', time:'12:00 PM ET', tv:'ABC', result:'', score:''},
+      {id:'u4', week:'4', date:'2026-09-26', opponent:'Oklahoma', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'u5', week:'5', date:'2026-10-03', opponent:'Vanderbilt', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'u6', week:'6', date:'2026-10-10', opponent:'Alabama', site:'A', place:'Bryant-Denny Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'u7', week:'7', date:'2026-10-17', opponent:'Auburn', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'u8', week:'BYE', date:'2026-10-24', opponent:'Open date', site:'-', place:'', time:'', tv:'', result:'', score:'', bye:true},
+      {id:'u9', week:'9', date:'2026-10-31', opponent:'Florida', site:'N', place:'Mercedes-Benz Stadium, Atlanta', time:'3:30 PM ET', tv:'ABC', result:'', score:''},
+      {id:'u10', week:'10', date:'2026-11-07', opponent:'Ole Miss', site:'A', place:'Vaught-Hemingway Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'u11', week:'11', date:'2026-11-14', opponent:'Missouri', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'u12', week:'12', date:'2026-11-21', opponent:'South Carolina', site:'A', place:'Williams-Brice Stadium', time:'TBA', tv:'TBA', result:'', score:''},
+      {id:'u13', week:'13', date:'2026-11-28', opponent:'Georgia Tech', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''}
+    ]
+  }
+];
+
+let state = { teams: [], activeTeam: AUBURN_ID };
+let addingTeam = false;
+let draftRows = {}; // teamId -> array of draft game rows while adding games
+let fbConfig = null;
+let fbApp = null, fbDb = null;
+const fbUnsubs = {}; // teamId -> unsubscribe fn
+const syncedGamesByTeam = {}; // teamId -> games array from Firestore
+
+async function loadState(){
+  try{
+    const t = await window.storage.get('schedule-teams-v2', false);
+    state.teams = JSON.parse(t.value);
+  }catch(e){
+    state.teams = DEFAULT_TEAMS;
+    await saveTeams();
+  }
+  try{
+    const a = await window.storage.get('active-team-v2', false);
+    state.activeTeam = a.value;
+  }catch(e){
+    state.activeTeam = state.teams[0] ? state.teams[0].id : null;
+    await saveActive();
+  }
+  render();
+  await initFirebaseIfConfigured();
+}
+
+async function initFirebaseIfConfigured(){
+  try{
+    const c = await window.storage.get('firebase-config', false);
+    fbConfig = JSON.parse(c.value);
+  }catch(e){ fbConfig = null; return; }
+  await connectFirebase(fbConfig, true);
+}
+
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function connectFirebase(config, silent){
+  const statusEl = document.getElementById('fbStatus');
+  try{
+    if(!window.firebase){
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+    }
+    fbApp = window.firebase.apps && window.firebase.apps.length ? window.firebase.app() : window.firebase.initializeApp(config);
+    fbDb = window.firebase.firestore();
+    subscribeAllTeams();
+    if(statusEl) statusEl.textContent = 'Connected. Teams with a matching schedules/{id} document will show a "synced" badge and update automatically.';
+  }catch(e){
+    console.error('Firebase connect failed', e);
+    if(!silent && statusEl) statusEl.textContent = 'Could not connect. This preview may be sandboxed from outside scripts — try downloading the file and opening it, or hosting it, outside the chat.';
+  }
+}
+
+function subscribeAllTeams(){
+  if(!fbDb) return;
+  state.teams.forEach(team=>{
+    if(fbUnsubs[team.id]) return;
+    fbUnsubs[team.id] = fbDb.collection('schedules').doc(team.id).onSnapshot(doc=>{
+      if(doc.exists){
+        const data = doc.data();
+        syncedGamesByTeam[team.id] = data.games || [];
+      } else {
+        delete syncedGamesByTeam[team.id];
+      }
+      render();
+    }, err=>console.error('snapshot error', err));
+  });
+}
+
+async function saveTeams(){
+  try{ await window.storage.set('schedule-teams-v2', JSON.stringify(state.teams), false); }
+  catch(e){ console.error('save teams failed', e); }
+}
+async function saveActive(){
+  try{ await window.storage.set('active-team-v2', state.activeTeam, false); }
+  catch(e){ console.error('save active failed', e); }
+}
+
+function fmtDate(iso){
+  const d = new Date(iso + 'T12:00:00');
+  const dow = d.toLocaleDateString('en-US',{weekday:'short'});
+  const md = d.toLocaleDateString('en-US',{month:'short', day:'numeric'});
+  return {dow, md};
+}
+
+function getTeam(id){ return state.teams.find(t=>t.id===id); }
+
+function computeRecord(team){
+  let w=0,l=0;
+  team.games.forEach(g=>{ if(g.result==='W') w++; if(g.result==='L') l++; });
+  return {w,l};
+}
+
+function render(){
+  renderTabs();
+  renderBoard();
+}
+
+function renderTabs(){
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  state.teams.forEach(team=>{
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (team.id===state.activeTeam ? ' active' : '');
+    tab.innerHTML = `<span class="dot" style="background:${team.color}"></span><span>${escapeHtml(team.name)}</span>` +
+      (state.teams.length>1 ? `<span class="close" data-remove="${team.id}" title="Remove team">&times;</span>` : '');
+    tab.addEventListener('click', (e)=>{
+      if(e.target.dataset.remove){ e.stopPropagation(); removeTeam(e.target.dataset.remove); return; }
+      state.activeTeam = team.id; addingTeam=false; saveActive(); render();
+    });
+    tabs.appendChild(tab);
+  });
+  const addBtn = document.createElement('div');
+  addBtn.className = 'tab-add';
+  addBtn.textContent = '+ Add team';
+  addBtn.addEventListener('click', ()=>{ addingTeam = true; render(); });
+  tabs.appendChild(addBtn);
+}
+
+function renderBoard(){
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  if(addingTeam){
+    board.appendChild(buildNewTeamPanel());
+    return;
+  }
+
+  const team = getTeam(state.activeTeam);
+  if(!team){
+    board.innerHTML = '<div class="empty">No team selected. Add one to get started.</div>';
+    return;
+  }
+
+  const isSynced = !!syncedGamesByTeam[team.id];
+  const games = isSynced ? syncedGamesByTeam[team.id] : team.games;
+
+  const head = document.createElement('div');
+  head.className = 'board-head';
+  const rec = computeRecord({games});
+  head.innerHTML = `<div class="record"><span class="win">${rec.w}</span>-<span class="loss">${rec.l}</span><span class="record-label">2026 record</span></div>`;
+  if(isSynced){
+    const badge = document.createElement('span');
+    badge.className = 'result W';
+    badge.style.fontFamily = "'Inter',sans-serif";
+    badge.style.fontWeight = '600';
+    badge.textContent = 'Synced nightly';
+    head.appendChild(badge);
+  } else {
+    const addGameBtn = document.createElement('button');
+    addGameBtn.className = 'small-btn ghost';
+    addGameBtn.textContent = '+ Add / edit games';
+    addGameBtn.addEventListener('click', ()=>{
+      draftRows[team.id] = team.games.filter(g=>!g.bye).map(g=>({...g}));
+      team._editing = true;
+      render();
+    });
+    head.appendChild(addGameBtn);
+  }
+  board.appendChild(head);
+
+  if(team._editing && !isSynced){
+    board.appendChild(buildEditGamesPanel(team));
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.innerHTML = `
+    <thead><tr>
+      <th class="num">Wk</th>
+      <th>Date</th>
+      <th>Opponent</th>
+      <th>Time</th>
+      <th>TV</th>
+      <th>Result</th>
+    </tr></thead>`;
+  const tbody = document.createElement('tbody');
+
+  games.forEach(g=>{
+    const tr = document.createElement('tr');
+    if(g.bye){
+      tr.className='bye';
+      tr.innerHTML = `<td class="wk">-</td><td class="date">${fmtDate(g.date).md}</td><td colspan="4" style="color:var(--ink-soft);font-style:italic;">Open date — bye week</td>`;
+      tbody.appendChild(tr);
+      return;
+    }
+    const dt = fmtDate(g.date);
+    const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
+    tr.innerHTML = `
+      <td class="wk">${escapeHtml(g.week)}</td>
+      <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
+      <td><div class="opp"><span class="site-tag">${siteLabel}</span><div><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
+      <td class="${isSynced?'':'editable'}" data-field="time" data-game="${g.id}">${escapeHtml(g.time)||'TBA'}</td>
+      <td class="${isSynced?'':'editable'} tv" data-field="tv" data-game="${g.id}">${escapeHtml(g.tv)||'TBA'}</td>
+      <td class="${isSynced?'':'editable'}" data-field="result" data-game="${g.id}">${resultBadge(g)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  board.appendChild(table);
+
+  if(!isSynced){
+    board.querySelectorAll('.editable').forEach(cell=>{
+      cell.addEventListener('click', ()=>editCell(cell, team));
+    });
+  }
+}
+
+function resultBadge(g){
+  if(g.result==='W') return `<span class="result W">W ${escapeHtml(g.score||'')}</span>`;
+  if(g.result==='L') return `<span class="result L">L ${escapeHtml(g.score||'')}</span>`;
+  return `<span class="result pending">—</span>`;
+}
+
+function editCell(cell, team){
+  if(cell.querySelector('input,select')) return;
+  const field = cell.dataset.field;
+  const gameId = cell.dataset.game;
+  const game = team.games.find(g=>g.id===gameId);
+
+  if(field==='result'){
+    cell.innerHTML = `
+      <select class="r-select">
+        <option value="" ${!game.result?'selected':''}>—</option>
+        <option value="W" ${game.result==='W'?'selected':''}>Win</option>
+        <option value="L" ${game.result==='L'?'selected':''}>Loss</option>
+      </select>
+      <input class="r-score" type="text" placeholder="e.g. 31-17" value="${escapeHtml(game.score||'')}" style="margin-top:4px;">
+    `;
+    const sel = cell.querySelector('.r-select');
+    const score = cell.querySelector('.r-score');
+    sel.focus();
+    const commit = async ()=>{
+      game.result = sel.value;
+      game.score = score.value.trim();
+      await saveTeams();
+      render();
+    };
+    sel.addEventListener('change', commit);
+    score.addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); });
+    score.addEventListener('blur', commit);
+    return;
+  }
+
+  const val = game[field] || '';
+  cell.innerHTML = `<input type="text" value="${escapeHtml(val)}">`;
+  const input = cell.querySelector('input');
+  input.focus();
+  input.select();
+  const commit = async ()=>{
+    game[field] = input.value.trim();
+    await saveTeams();
+    render();
+  };
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') input.blur(); if(e.key==='Escape'){ render(); } });
+  input.addEventListener('blur', commit);
+}
+
+function buildEditGamesPanel(team){
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.innerHTML = `<h3>Games for ${escapeHtml(team.name)}</h3>`;
+
+  const header = document.createElement('div');
+  header.className = 'grid-row';
+  header.style.fontSize='12px';
+  header.style.color='var(--ink-soft)';
+  header.innerHTML = `<div>Opponent</div><div>Date</div><div>Site</div><div>Time</div><div>TV</div><div></div>`;
+  panel.appendChild(header);
+
+  const rows = draftRows[team.id];
+  rows.forEach((row, idx)=>{
+    const r = document.createElement('div');
+    r.className = 'grid-row';
+    r.innerHTML = `
+      <input type="text" value="${escapeHtml(row.opponent)}" data-f="opponent" data-i="${idx}" placeholder="Opponent">
+      <input type="date" value="${escapeHtml(row.date)}" data-f="date" data-i="${idx}">
+      <select data-f="site" data-i="${idx}">
+        <option value="H" ${row.site==='H'?'selected':''}>Home</option>
+        <option value="A" ${row.site==='A'?'selected':''}>Away</option>
+        <option value="N" ${row.site==='N'?'selected':''}>Neutral</option>
+      </select>
+      <input type="text" value="${escapeHtml(row.time)}" data-f="time" data-i="${idx}" placeholder="TBA">
+      <input type="text" value="${escapeHtml(row.tv)}" data-f="tv" data-i="${idx}" placeholder="TBA">
+      <span class="del-row" style="opacity:1;" data-del="${idx}">&times;</span>
+    `;
+    panel.appendChild(r);
+  });
+
+  panel.querySelectorAll('input,select').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const i = +inp.dataset.i, f = inp.dataset.f;
+      rows[i][f] = inp.value;
+    });
+  });
+  panel.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      rows.splice(+btn.dataset.del,1);
+      renumber(rows);
+      renderBoard();
+    });
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'panel-actions';
+  actions.innerHTML = `
+    <button class="small-btn ghost" id="addRowBtn">+ Add game</button>
+    <button class="small-btn" id="saveGamesBtn">Save games</button>
+    <button class="small-btn ghost" id="cancelGamesBtn">Cancel</button>
+  `;
+  panel.appendChild(actions);
+
+  panel.querySelector('#addRowBtn').addEventListener('click', ()=>{
+    rows.push({id:'g'+Date.now(), week:'', date:'', opponent:'', site:'H', place:'', time:'', tv:'', result:'', score:''});
+    renumber(rows);
+    renderBoard();
+  });
+  panel.querySelector('#saveGamesBtn').addEventListener('click', async ()=>{
+    const cleaned = rows.filter(r=>r.opponent && r.date).sort((a,b)=> a.date.localeCompare(b.date));
+    renumber(cleaned);
+    team.games = cleaned;
+    team._editing = false;
+    await saveTeams();
+    render();
+  });
+  panel.querySelector('#cancelGamesBtn').addEventListener('click', ()=>{
+    team._editing = false;
+    render();
+  });
+
+  return panel;
+}
+
+function renumber(rows){
+  rows.forEach((r,i)=>{ r.week = String(i+1); });
+}
+
+function buildNewTeamPanel(){
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.style.borderRadius = '0 6px 6px 6px';
+  panel.style.borderTop = 'none';
+  panel.innerHTML = `<h3>Add a team</h3>`;
+  const form = document.createElement('div');
+  form.className = 'new-team-form';
+  form.innerHTML = `
+    <input type="text" id="newTeamName" placeholder="Team name (e.g. Georgia Bulldogs)">
+    <input type="color" id="newTeamColor" value="#03244E" title="Team color">
+    <button class="small-btn" id="createTeamBtn">Add team</button>
+    <button class="small-btn ghost" id="cancelTeamBtn">Cancel</button>
+  `;
+  panel.appendChild(form);
+  const note = document.createElement('div');
+  note.className = 'footnote';
+  note.style.marginTop = '10px';
+  note.textContent = "You'll add its games next, or paste the team's schedule into the chat and ask Claude to fill this file in for you.";
+  panel.appendChild(note);
+
+  panel.querySelector('#cancelTeamBtn').addEventListener('click', ()=>{ addingTeam=false; render(); });
+  panel.querySelector('#createTeamBtn').addEventListener('click', async ()=>{
+    const nameInput = panel.querySelector('#newTeamName');
+    const name = nameInput.value.trim();
+    if(!name){ nameInput.focus(); return; }
+    const color = panel.querySelector('#newTeamColor').value;
+    const id = 'team-' + Date.now();
+    const team = { id, name, color, games: [] };
+    state.teams.push(team);
+    state.activeTeam = id;
+    addingTeam = false;
+    team._editing = true;
+    draftRows[id] = [];
+    await saveTeams();
+    await saveActive();
+    render();
+  });
+
+  return panel;
+}
+
+async function removeTeam(id){
+  state.teams = state.teams.filter(t=>t.id!==id);
+  if(state.activeTeam===id){
+    state.activeTeam = state.teams[0] ? state.teams[0].id : null;
+    await saveActive();
+  }
+  await saveTeams();
+  render();
+}
+
+function escapeHtml(str){
+  if(str===undefined || str===null) return '';
+  return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+
+document.getElementById('connectLink').addEventListener('click', ()=>{
+  const panel = document.getElementById('firebasePanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if(fbConfig) document.getElementById('fbConfigInput').value = JSON.stringify(fbConfig, null, 2);
+});
+document.getElementById('cancelFbConfigBtn').addEventListener('click', ()=>{
+  document.getElementById('firebasePanel').style.display = 'none';
+});
+document.getElementById('saveFbConfigBtn').addEventListener('click', async ()=>{
+  const raw = document.getElementById('fbConfigInput').value.trim();
+  const statusEl = document.getElementById('fbStatus');
+  let parsed;
+  try{ parsed = JSON.parse(raw); }
+  catch(e){ statusEl.textContent = "That doesn't look like valid JSON — copy the config object exactly as Firebase shows it."; return; }
+  try{
+    await window.storage.set('firebase-config', JSON.stringify(parsed), false);
+    fbConfig = parsed;
+    statusEl.textContent = 'Connecting...';
+    await connectFirebase(parsed, false);
+  }catch(e){
+    statusEl.textContent = 'Could not save config.';
+  }
+});
+document.getElementById('disconnectFbBtn').addEventListener('click', async ()=>{
+  try{ await window.storage.delete('firebase-config', false); }catch(e){}
+  fbConfig = null;
+  Object.keys(fbUnsubs).forEach(id=>{ fbUnsubs[id](); delete fbUnsubs[id]; });
+  Object.keys(syncedGamesByTeam).forEach(id=> delete syncedGamesByTeam[id]);
+  document.getElementById('fbStatus').textContent = 'Disconnected. Showing locally-stored data again.';
+  render();
+});
+
+loadState();
+</script>
+</body>
+</html>
