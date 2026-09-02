@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>2026 Football Schedule Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -18,15 +19,18 @@
     --loss-bg:#F3E5E2;
     --focus:#2F6F4E;
   }
-  *{box-sizing:border-box;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html{-webkit-text-size-adjust:100%;}
   body{
     margin:0;
     background:var(--stone);
     color:var(--ink);
     font-family:'Inter',sans-serif;
     -webkit-font-smoothing:antialiased;
+    touch-action:manipulation;
   }
-  .wrap{max-width:900px;margin:0 auto;padding:32px 20px 80px;}
+  .wrap{max-width:900px;margin:0 auto;padding:32px 20px 80px;padding-bottom:calc(80px + env(safe-area-inset-bottom));}
+  button, .tab, .tab-add, .editable, .del-row, .close{touch-action:manipulation;}
 
   .masthead{
     display:flex;
@@ -74,6 +78,7 @@
     color:var(--ink-soft);
     cursor:pointer;
     user-select:none;
+    min-height:44px;
   }
   .tab .dot{width:10px;height:10px;border-radius:50%;flex:none;}
   .tab.active{
@@ -82,12 +87,14 @@
     box-shadow:0 3px 0 var(--card);
   }
   .tab .close{
-    font-size:15px;
+    font-size:19px;
     color:var(--ink-soft);
     margin-left:2px;
     line-height:1;
+    padding:6px 2px 6px 6px;
+    margin:-6px -2px -6px 0;
   }
-  .tab .close:hover{color:var(--loss);}
+  .tab .close:hover, .tab .close:active{color:var(--loss);}
   .tab-add{
     padding:9px 14px;
     border-radius:3px 3px 0 0;
@@ -97,8 +104,25 @@
     font-size:14px;
     color:var(--ink-soft);
     cursor:pointer;
+    min-height:44px;
   }
-  .tab-add:hover{color:var(--ink);border-color:var(--ink-soft);}
+  .tab-add:hover, .tab-add:active{color:var(--ink);border-color:var(--ink-soft);}
+
+  @media (max-width:640px){
+    .tabs{
+      flex-wrap:nowrap;
+      overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+      scroll-snap-type:x proximity;
+      padding-bottom:2px;
+      margin-left:-20px;
+      margin-right:-20px;
+      padding-left:20px;
+      padding-right:20px;
+    }
+    .tabs::-webkit-scrollbar{display:none;}
+    .tab, .tab-add{flex:none;scroll-snap-align:start;white-space:nowrap;}
+  }
 
   .board{
     background:var(--card);
@@ -261,9 +285,84 @@
   .footnote code{background:#F3EFE6;padding:1px 5px;border-radius:3px;}
 
   @media (max-width:640px){
-    .grid-row{grid-template-columns:1fr 1fr;}
-    thead th:nth-child(5), td:nth-child(5){display:none;}
     .masthead h1{font-size:26px;}
+
+    /* Prevent iOS Safari's auto-zoom-on-focus, which fires on any
+       input/select under 16px and was likely the main culprit. */
+    .editable input, .editable select,
+    .grid-row input, .grid-row select,
+    .new-team-form input, .new-team-form select,
+    #fbConfigInput{
+      font-size:16px !important;
+    }
+
+    /* Bigger, thumb-friendly tap targets for inline edit fields */
+    .editable input, .editable select{
+      padding:8px 8px;
+      min-height:40px;
+    }
+
+    /* Card layout for the schedule table instead of a cramped grid */
+    table, thead, tbody, tr{display:block;width:100%;}
+    thead{display:none;}
+    tbody tr{
+      border:1px solid var(--line);
+      border-radius:8px;
+      margin-bottom:10px;
+      padding:10px 12px;
+      background:var(--card);
+    }
+    tbody tr.bye{border-style:dashed;}
+    td{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:8px 0;
+      border-bottom:1px dashed var(--line);
+      font-size:15px;
+    }
+    tr > td:last-child{border-bottom:none;}
+    td.wk{display:none;}
+    td.date{
+      order:-2;
+      font-family:'Barlow Condensed',sans-serif;
+      font-weight:700;
+      font-size:16px;
+      justify-content:flex-start;
+      gap:8px;
+    }
+    td.date .dow{display:inline;font-size:13px;}
+    td[data-label]::before{
+      content:attr(data-label);
+      font-size:11px;
+      font-weight:600;
+      color:var(--ink-soft);
+      flex:none;
+    }
+    td .opp{width:100%;justify-content:space-between;}
+    td.opp-cell{order:-1;padding-top:2px;}
+    .opp .place{text-align:right;}
+
+    /* Add/edit-games panel: one full-width field per row, clearly labeled */
+    .grid-row{
+      grid-template-columns:1fr;
+      gap:4px;
+      border-bottom:1px solid var(--line);
+      padding-bottom:10px;
+      margin-bottom:12px;
+      position:relative;
+    }
+    .grid-row:first-child{display:none;} /* the desktop column-label header row */
+    .grid-row input, .grid-row select{padding:10px;}
+    .grid-row [data-del]{
+      position:absolute;
+      top:-2px;
+      right:-2px;
+      font-size:22px;
+      padding:4px 8px;
+    }
+    .panel-actions .small-btn{flex:1;min-height:44px;}
   }
 </style>
 </head>
@@ -562,10 +661,10 @@ function renderBoard(){
     tr.innerHTML = `
       <td class="wk">${escapeHtml(g.week)}</td>
       <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
-      <td><div class="opp"><span class="site-tag">${siteLabel}</span><div><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
-      <td class="${isSynced?'':'editable'}" data-field="time" data-game="${g.id}">${escapeHtml(g.time)||'TBA'}</td>
-      <td class="${isSynced?'':'editable'} tv" data-field="tv" data-game="${g.id}">${escapeHtml(g.tv)||'TBA'}</td>
-      <td class="${isSynced?'':'editable'}" data-field="result" data-game="${g.id}">${resultBadge(g)}</td>
+      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
+      <td class="${isSynced?'':'editable'}" data-field="time" data-game="${g.id}" data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
+      <td class="${isSynced?'':'editable'} tv" data-field="tv" data-game="${g.id}" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
+      <td class="${isSynced?'':'editable'}" data-field="result" data-game="${g.id}" data-label="Result">${resultBadge(g)}</td>
     `;
     tbody.appendChild(tr);
   });
