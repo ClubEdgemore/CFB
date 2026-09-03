@@ -327,7 +327,7 @@
     }
     td .opp{width:100%;justify-content:space-between;}
     td.opp-cell{order:-1;padding-top:2px;}
-    .opp .place{text-align:right;}
+    .opp-info{text-align:right;}
   }
 </style>
 </head>
@@ -394,25 +394,10 @@
   <option value="Wisconsin"><option value="Wyoming">
 </datalist>
 
+<!-- Firebase web config lives in its own file (firebase-config.js) so that
+     updating index.html never overwrites it — see that file for details. -->
+<script src="firebase-config.js"></script>
 <script>
-/* ---------------- Firebase web config ----------------
-   This is NOT a secret — Firebase web configs are meant to be public in
-   client-side code; the real security boundary is your Firestore rules
-   (read-only for everyone) plus the Cloud Functions (which hold the actual
-   CFBD API key server-side). Fill this in once with your project's config
-   from Firebase console → Project settings → Your apps → SDK setup, then
-   push the file to GitHub Pages — every visitor connects automatically,
-   with no per-device paste-in step required. */
-const FIREBASE_CONFIG = {
- apiKey: "AIzaSyAz6BELBLMBoeWYq2yzmpRD3EinGAl9SxA",
-  authDomain: "college-football-f3514.firebaseapp.com",
-  projectId: "college-football-f3514",
-  storageBucket: "college-football-f3514.firebasestorage.app",
-  messagingSenderId: "501201392822",
-  appId: "1:501201392822:web:fd0b5cb3e077c9caf10217",
-  measurementId: "G-Z0QBGJJ7GZ"
-};
-
 /* ---------------- storage (plain localStorage — this is a real hosted page,
    not a claude.ai artifact preview, so no window.storage runtime here) ---------------- */
 function lsGet(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
@@ -456,7 +441,10 @@ document.getElementById('seasonLabel').textContent = currentSeasonYear() + ' sea
 
 /* ---------------- boot ---------------- */
 function loadConfig(){
-  fbConfig = (FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey) ? FIREBASE_CONFIG : null;
+  // FIREBASE_CONFIG comes from firebase-config.js (loaded via <script src>
+  // above). Guard with typeof in case that file is missing entirely.
+  const cfg = (typeof FIREBASE_CONFIG !== 'undefined') ? FIREBASE_CONFIG : null;
+  fbConfig = (cfg && cfg.apiKey) ? cfg : null;
   const a = lsGet('cfb-active-team');
   if(a) state.activeTeam = a;
 }
@@ -646,7 +634,7 @@ function renderBoard(){
   board.innerHTML = '';
 
   if(!fbConfig){
-    board.innerHTML = `<div class="empty">Firebase isn't configured yet. Edit the <code>FIREBASE_CONFIG</code> object near the top of this file's script.<br><br>See <code>SETUP.md</code> for the full walkthrough.</div>`;
+    board.innerHTML = `<div class="empty">Firebase isn't configured yet. Fill in <code>firebase-config.js</code> (in the same folder as this file).<br><br>See <code>SETUP.md</code> for the full walkthrough.</div>`;
     return;
   }
 
@@ -708,7 +696,7 @@ function renderBoard(){
     tr.innerHTML = `
       <td class="wk">${escapeHtml(g.week)}</td>
       <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
-      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
+      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div class="opp-info"><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
       <td data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
       <td class="tv" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
       <td data-label="Result">${resultBadge(g)}</td>
