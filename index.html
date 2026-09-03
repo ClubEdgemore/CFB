@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>2026 Football Schedule Tracker</title>
+<title>Football Schedule Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -30,7 +30,7 @@
     touch-action:manipulation;
   }
   .wrap{max-width:900px;margin:0 auto;padding:32px 20px 80px;padding-bottom:calc(80px + env(safe-area-inset-bottom));}
-  button, .tab, .tab-add, .editable, .del-row, .close{touch-action:manipulation;}
+  button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 
   .masthead{
     display:flex;
@@ -54,7 +54,17 @@
     font-size:14px;
     color:var(--ink-soft);
     font-weight:500;
+    display:flex;
+    align-items:center;
+    gap:14px;
   }
+  .gear{
+    cursor:pointer;
+    font-size:16px;
+    color:var(--ink-soft);
+    user-select:none;
+  }
+  .gear:hover{color:var(--ink);}
 
   .tabs{
     display:flex;
@@ -134,17 +144,22 @@
     display:flex;
     align-items:center;
     justify-content:space-between;
+    gap:10px;
     padding:16px 18px;
     border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
   }
   .record{
     font-family:'Barlow Condensed',sans-serif;
     font-size:22px;
     font-weight:700;
+    display:flex;
+    align-items:center;
   }
   .record .win{color:var(--win);}
   .record .loss{color:var(--loss);}
   .record-label{font-size:12px;color:var(--ink-soft);font-weight:500;margin-left:6px;}
+  .synced-note{font-size:12px;color:var(--ink-soft);}
 
   table{width:100%;border-collapse:collapse;}
   thead th{
@@ -181,23 +196,6 @@
   }
   .opp .name{font-weight:600;}
   .opp .place{display:block;font-size:12px;color:var(--ink-soft);font-weight:400;}
-
-  .editable{
-    cursor:text;
-    border-radius:4px;
-    padding:3px 6px;
-    margin:-3px -6px;
-  }
-  .editable:hover{background:#F3EFE6;}
-  .editable input, .editable select{
-    font-family:inherit;
-    font-size:14px;
-    border:1px solid var(--focus);
-    border-radius:4px;
-    padding:3px 5px;
-    width:100%;
-    outline:none;
-  }
   .tv{color:var(--ink-soft);}
 
   .result{
@@ -212,9 +210,9 @@
   }
   .result.W{background:var(--win-bg);color:var(--win);}
   .result.L{background:var(--loss-bg);color:var(--loss);}
+  .result.T{background:#EFEAE1;color:var(--ink-soft);}
   .result.pending{background:#EFEAE1;color:var(--ink-soft);font-weight:600;}
 
-  .row-actions{width:26px;text-align:center;}
   .del-row{
     opacity:0;
     color:var(--ink-soft);
@@ -235,22 +233,6 @@
     font-size:19px;
     margin:0 0 12px;
   }
-  .grid-row{
-    display:grid;
-    grid-template-columns:1.1fr 0.8fr 0.9fr 0.9fr 1fr auto;
-    gap:8px;
-    margin-bottom:8px;
-  }
-  .grid-row input, .grid-row select{
-    font-family:'Inter',sans-serif;
-    font-size:13.5px;
-    padding:7px 8px;
-    border:1px solid var(--line);
-    border-radius:5px;
-    width:100%;
-    background:#fff;
-  }
-  .grid-row input:focus, .grid-row select:focus{outline:2px solid var(--focus);outline-offset:1px;}
   .small-btn{
     font-family:'Inter',sans-serif;
     font-size:13px;
@@ -262,47 +244,39 @@
     color:#fff;
     cursor:pointer;
   }
+  .small-btn:disabled{opacity:0.55;cursor:default;}
   .small-btn.ghost{background:transparent;color:var(--ink);}
   .small-btn.danger{border-color:var(--loss);color:var(--loss);background:transparent;}
-  .panel-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .panel-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;}
 
   .new-team-form{
     display:flex;
     gap:10px;
     align-items:center;
     flex-wrap:wrap;
-    margin-bottom:14px;
+    margin-bottom:10px;
   }
   .new-team-form input[type="text"]{
     padding:8px 10px;font-size:14px;border:1px solid var(--line);border-radius:5px;font-family:'Inter',sans-serif;
+    min-width:240px;flex:1;
   }
-  .new-team-form input[type="color"]{
-    width:36px;height:36px;padding:2px;border:1px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;
-  }
+  .form-msg{font-size:13px;margin-top:4px;min-height:18px;}
+  .form-msg.error{color:var(--loss);}
+  .form-msg.info{color:var(--ink-soft);}
 
   .empty{padding:40px 18px;text-align:center;color:var(--ink-soft);}
   .footnote{margin-top:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
   .footnote code{background:#F3EFE6;padding:1px 5px;border-radius:3px;}
 
+  #fbConfigInput{
+    width:100%;font-family:monospace;font-size:12.5px;padding:8px;border:1px solid var(--line);border-radius:5px;
+  }
+
   @media (max-width:640px){
     .masthead h1{font-size:26px;}
 
-    /* Prevent iOS Safari's auto-zoom-on-focus, which fires on any
-       input/select under 16px and was likely the main culprit. */
-    .editable input, .editable select,
-    .grid-row input, .grid-row select,
-    .new-team-form input, .new-team-form select,
-    #fbConfigInput{
-      font-size:16px !important;
-    }
+    .new-team-form input, #fbConfigInput{font-size:16px !important;}
 
-    /* Bigger, thumb-friendly tap targets for inline edit fields */
-    .editable input, .editable select{
-      padding:8px 8px;
-      min-height:40px;
-    }
-
-    /* Card layout for the schedule table instead of a cramped grid */
     table, thead, tbody, tr{display:block;width:100%;}
     thead{display:none;}
     tbody tr{
@@ -343,26 +317,6 @@
     td .opp{width:100%;justify-content:space-between;}
     td.opp-cell{order:-1;padding-top:2px;}
     .opp .place{text-align:right;}
-
-    /* Add/edit-games panel: one full-width field per row, clearly labeled */
-    .grid-row{
-      grid-template-columns:1fr;
-      gap:4px;
-      border-bottom:1px solid var(--line);
-      padding-bottom:10px;
-      margin-bottom:12px;
-      position:relative;
-    }
-    .grid-row:first-child{display:none;} /* the desktop column-label header row */
-    .grid-row input, .grid-row select{padding:10px;}
-    .grid-row [data-del]{
-      position:absolute;
-      top:-2px;
-      right:-2px;
-      font-size:22px;
-      padding:4px 8px;
-    }
-    .panel-actions .small-btn{flex:1;min-height:44px;}
   }
 </style>
 </head>
@@ -371,22 +325,30 @@
 
   <div class="masthead">
     <h1>Football Schedule Tracker</h1>
-    <div class="season">2026 season</div>
+    <div class="season">
+      <span id="seasonLabel"></span>
+      <span class="gear" id="settingsToggle" title="Firebase settings">&#9881;&#65039; Settings</span>
+    </div>
   </div>
 
   <div class="tabs" id="tabs"></div>
   <div class="board" id="board"></div>
 
-  <div class="footnote" id="footnote">
-    Scores, times, and TV info are stored on this device and don't update automatically. Click any Time, TV, or Result cell to edit it as new info comes out, or paste updated info back into this chat and ask Claude to refresh the file.
-    <span id="connectLink" style="text-decoration:underline;cursor:pointer;">Connect nightly updates &rarr;</span>
+  <div class="footnote">
+    Schedules, times, TV/streaming info, and scores are fetched automatically from the
+    <a href="https://collegefootballdata.com" target="_blank" rel="noopener">College Football Data</a> API the moment you add a team,
+    then refreshed every night by a Cloud Function. Nothing here is editable by hand &mdash; if something looks off, it'll usually
+    correct itself on the next nightly refresh.
   </div>
+
   <div id="firebasePanel" class="panel" style="display:none;margin-top:10px;">
     <h3>Connect to your Firebase project</h3>
     <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">
-      Paste the Firebase web config from your project settings (Project settings &rarr; General &rarr; Your apps &rarr; SDK setup). This is safe to store here &mdash; it only grants read access, and only for teams your nightly Cloud Function writes to.
+      Paste the Firebase web config from your project settings (Project settings &rarr; General &rarr; Your apps &rarr; SDK setup).
+      This only identifies which Firestore database to read from &mdash; see SETUP.md for the full walkthrough, including deploying
+      the Cloud Functions that actually fetch schedules.
     </p>
-    <textarea id="fbConfigInput" rows="5" style="width:100%;font-family:monospace;font-size:12.5px;padding:8px;border:1px solid var(--line);border-radius:5px;" placeholder='{"apiKey":"...","projectId":"...","...":"..."}'></textarea>
+    <textarea id="fbConfigInput" rows="5" placeholder='{"apiKey":"...","projectId":"...","...":"..."}'></textarea>
     <div class="panel-actions">
       <button class="small-btn" id="saveFbConfigBtn">Connect</button>
       <button class="small-btn ghost" id="cancelFbConfigBtn">Cancel</button>
@@ -396,104 +358,78 @@
   </div>
 </div>
 
+<!-- FBS school names, for the "Add team" autocomplete only. The Cloud Function
+     looks up the real record server-side, so this list is just a typing aid
+     and doesn't need to be perfectly exhaustive or current. -->
+<datalist id="fbsSchools">
+  <option value="Air Force"><option value="Akron"><option value="Alabama"><option value="Appalachian State">
+  <option value="Arizona"><option value="Arizona State"><option value="Arkansas"><option value="Arkansas State">
+  <option value="Army"><option value="Auburn"><option value="Ball State"><option value="Baylor">
+  <option value="Boise State"><option value="Boston College"><option value="Bowling Green"><option value="Buffalo">
+  <option value="BYU"><option value="California"><option value="Central Michigan"><option value="Charlotte">
+  <option value="Cincinnati"><option value="Clemson"><option value="Coastal Carolina"><option value="Colorado">
+  <option value="Colorado State"><option value="Duke"><option value="East Carolina"><option value="Eastern Michigan">
+  <option value="FIU"><option value="Florida"><option value="Florida Atlantic"><option value="Florida State">
+  <option value="Fresno State"><option value="Georgia"><option value="Georgia Southern"><option value="Georgia State">
+  <option value="Georgia Tech"><option value="Hawai'i"><option value="Houston"><option value="Illinois">
+  <option value="Indiana"><option value="Iowa"><option value="Iowa State"><option value="Jacksonville State">
+  <option value="James Madison"><option value="Kansas"><option value="Kansas State"><option value="Kent State">
+  <option value="Kentucky"><option value="Liberty"><option value="Louisiana"><option value="Louisiana Monroe">
+  <option value="Louisiana Tech"><option value="Louisville"><option value="LSU"><option value="Marshall">
+  <option value="Maryland"><option value="Memphis"><option value="Miami"><option value="Miami (OH)">
+  <option value="Michigan"><option value="Michigan State"><option value="Middle Tennessee"><option value="Minnesota">
+  <option value="Mississippi State"><option value="Missouri"><option value="Navy"><option value="NC State">
+  <option value="Nebraska"><option value="Nevada"><option value="New Mexico"><option value="New Mexico State">
+  <option value="North Carolina"><option value="North Texas"><option value="Northern Illinois">
+  <option value="Northwestern"><option value="Notre Dame"><option value="Ohio"><option value="Ohio State">
+  <option value="Oklahoma"><option value="Oklahoma State"><option value="Old Dominion"><option value="Ole Miss">
+  <option value="Oregon"><option value="Oregon State"><option value="Penn State"><option value="Pittsburgh">
+  <option value="Purdue"><option value="Rice"><option value="Rutgers"><option value="Sam Houston">
+  <option value="San Diego State"><option value="San Jose State"><option value="SMU"><option value="South Alabama">
+  <option value="South Carolina"><option value="South Florida"><option value="Southern Miss">
+  <option value="Stanford"><option value="Syracuse"><option value="TCU"><option value="Temple">
+  <option value="Tennessee"><option value="Texas"><option value="Texas A&M"><option value="Texas State">
+  <option value="Texas Tech"><option value="Toledo"><option value="Troy"><option value="Tulane">
+  <option value="Tulsa"><option value="UAB"><option value="UCF"><option value="UCLA"><option value="UConn">
+  <option value="UMass"><option value="UNLV"><option value="USC"><option value="Utah"><option value="Utah State">
+  <option value="UTEP"><option value="UT San Antonio"><option value="Vanderbilt"><option value="Virginia">
+  <option value="Virginia Tech"><option value="Wake Forest"><option value="Washington"><option value="Washington State">
+  <option value="West Virginia"><option value="Western Kentucky"><option value="Western Michigan">
+  <option value="Wisconsin"><option value="Wyoming">
+</datalist>
+
 <script>
-const AUBURN_ID = 'auburn';
-const DEFAULT_TEAMS = [
-  {
-    id: AUBURN_ID,
-    name: 'Auburn Tigers',
-    color: '#03244E',
-    games: [
-      {id:'g1', week:'1', date:'2026-09-05', opponent:'Baylor', site:'N', place:'Mercedes-Benz Stadium, Atlanta', time:'3:30 PM ET', tv:'ABC', result:'', score:''},
-      {id:'g2', week:'2', date:'2026-09-12', opponent:'Southern Miss', site:'H', place:'Jordan-Hare Stadium', time:'7:30 PM ET', tv:'ESPNU/SECN', result:'', score:''},
-      {id:'g3', week:'3', date:'2026-09-19', opponent:'Florida', site:'H', place:'Jordan-Hare Stadium', time:'7:00 PM ET', tv:'ESPN', result:'', score:''},
-      {id:'g4', week:'4', date:'2026-09-26', opponent:'Vanderbilt', site:'H', place:'Jordan-Hare Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'g5', week:'5', date:'2026-10-03', opponent:'Tennessee', site:'A', place:'Neyland Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'g6', week:'BYE', date:'2026-10-10', opponent:'Open date', site:'-', place:'', time:'', tv:'', result:'', score:'', bye:true},
-      {id:'g7', week:'7', date:'2026-10-17', opponent:'Georgia', site:'A', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'g8', week:'8', date:'2026-10-24', opponent:'LSU', site:'H', place:'Jordan-Hare Stadium', time:'12:00 PM ET', tv:'ABC/ESPN', result:'', score:''},
-      {id:'g9', week:'9', date:'2026-10-31', opponent:'Ole Miss', site:'A', place:'Vaught-Hemingway Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'g10', week:'10', date:'2026-11-07', opponent:'Arkansas', site:'H', place:'Jordan-Hare Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'g11', week:'11', date:'2026-11-14', opponent:'Mississippi State', site:'A', place:'Davis Wade Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'g12', week:'12', date:'2026-11-21', opponent:'Samford', site:'H', place:'Jordan-Hare Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'g13', week:'13', date:'2026-11-28', opponent:'Alabama', site:'A', place:'Bryant-Denny Stadium (Iron Bowl)', time:'TBA', tv:'TBA', result:'', score:''}
-    ]
-  },
-  {
-    id: 'georgia-tech',
-    name: 'Georgia Tech Yellow Jackets',
-    color: '#B3A369',
-    games: [
-      {id:'t1', week:'1', date:'2026-09-03', opponent:'Colorado', site:'H', place:'Bobby Dodd Stadium', time:'8:00 PM ET', tv:'ESPN', result:'', score:''},
-      {id:'t2', week:'2', date:'2026-09-12', opponent:'Tennessee', site:'H', place:'Bobby Dodd Stadium', time:'7:00 PM ET', tv:'ESPN', result:'', score:''},
-      {id:'t3', week:'3', date:'2026-09-19', opponent:'Mercer', site:'H', place:'Bobby Dodd Stadium', time:'12:00 PM ET', tv:'ACC Network', result:'', score:''},
-      {id:'t4', week:'4', date:'2026-09-26', opponent:'Stanford', site:'A', place:'Stanford Stadium', time:'10:30 PM ET', tv:'ESPN', result:'', score:''},
-      {id:'t5', week:'BYE', date:'2026-10-03', opponent:'Open date', site:'-', place:'', time:'', tv:'', result:'', score:'', bye:true},
-      {id:'t6', week:'6', date:'2026-10-10', opponent:'Duke', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'t7', week:'7', date:'2026-10-17', opponent:'Virginia Tech', site:'A', place:'Lane Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'t8', week:'8', date:'2026-10-21', opponent:'Pitt', site:'A', place:'Acrisure Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'t9', week:'9', date:'2026-10-24', opponent:'Boston College', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'t10', week:'10', date:'2026-11-07', opponent:'Louisville', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'t11', week:'11', date:'2026-11-14', opponent:'Clemson', site:'A', place:'Memorial Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'t12', week:'12', date:'2026-11-21', opponent:'Wake Forest', site:'H', place:'Bobby Dodd Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'t13', week:'13', date:'2026-11-28', opponent:'Georgia', site:'A', place:'Sanford Stadium (Clean, Old-Fashioned Hate)', time:'TBA', tv:'TBA', result:'', score:''}
-    ]
-  },
-  {
-    id: 'georgia',
-    name: 'Georgia Bulldogs',
-    color: '#BA0C2F',
-    games: [
-      {id:'u1', week:'1', date:'2026-09-05', opponent:'Tennessee State', site:'H', place:'Sanford Stadium', time:'3:00 PM ET', tv:'ESPN+/SECN+', result:'', score:''},
-      {id:'u2', week:'2', date:'2026-09-12', opponent:'Western Kentucky', site:'H', place:'Sanford Stadium', time:'12:45 PM ET', tv:'SEC Network', result:'', score:''},
-      {id:'u3', week:'3', date:'2026-09-19', opponent:'Arkansas', site:'A', place:'Razorback Stadium', time:'12:00 PM ET', tv:'ABC', result:'', score:''},
-      {id:'u4', week:'4', date:'2026-09-26', opponent:'Oklahoma', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'u5', week:'5', date:'2026-10-03', opponent:'Vanderbilt', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'u6', week:'6', date:'2026-10-10', opponent:'Alabama', site:'A', place:'Bryant-Denny Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'u7', week:'7', date:'2026-10-17', opponent:'Auburn', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'u8', week:'BYE', date:'2026-10-24', opponent:'Open date', site:'-', place:'', time:'', tv:'', result:'', score:'', bye:true},
-      {id:'u9', week:'9', date:'2026-10-31', opponent:'Florida', site:'N', place:'Mercedes-Benz Stadium, Atlanta', time:'3:30 PM ET', tv:'ABC', result:'', score:''},
-      {id:'u10', week:'10', date:'2026-11-07', opponent:'Ole Miss', site:'A', place:'Vaught-Hemingway Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'u11', week:'11', date:'2026-11-14', opponent:'Missouri', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'u12', week:'12', date:'2026-11-21', opponent:'South Carolina', site:'A', place:'Williams-Brice Stadium', time:'TBA', tv:'TBA', result:'', score:''},
-      {id:'u13', week:'13', date:'2026-11-28', opponent:'Georgia Tech', site:'H', place:'Sanford Stadium', time:'TBA', tv:'TBA', result:'', score:''}
-    ]
-  }
-];
+/* ---------------- storage (plain localStorage — this is a real hosted page,
+   not a claude.ai artifact preview, so no window.storage runtime here) ---------------- */
+function lsGet(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
+function lsSet(key,val){ try{ localStorage.setItem(key,val); }catch(e){} }
+function lsDel(key){ try{ localStorage.removeItem(key); }catch(e){} }
 
-let state = { teams: [], activeTeam: AUBURN_ID };
-let addingTeam = false;
-let draftRows = {}; // teamId -> array of draft game rows while adding games
+let state = { teams: [], activeTeam: null };
 let fbConfig = null;
-let fbApp = null, fbDb = null;
-const fbUnsubs = {}; // teamId -> unsubscribe fn
-const syncedGamesByTeam = {}; // teamId -> games array from Firestore
+let fbApp = null, fbDb = null, fbFns = null;
+let teamsUnsub = null;
+let scheduleUnsub = null;
+const schedulesByTeam = {}; // teamId -> {games, updatedAt}
+let addingTeam = false;
+let addBusy = false;
+let addMsg = '';
 
-async function loadState(){
-  try{
-    const t = await window.storage.get('schedule-teams-v2', false);
-    state.teams = JSON.parse(t.value);
-  }catch(e){
-    state.teams = DEFAULT_TEAMS;
-    await saveTeams();
-  }
-  try{
-    const a = await window.storage.get('active-team-v2', false);
-    state.activeTeam = a.value;
-  }catch(e){
-    state.activeTeam = state.teams[0] ? state.teams[0].id : null;
-    await saveActive();
-  }
-  render();
-  await initFirebaseIfConfigured();
+function currentSeasonYear(){
+  const now = new Date();
+  const month = now.getUTCMonth() + 1;
+  return month >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
 }
+document.getElementById('seasonLabel').textContent = currentSeasonYear() + ' season';
 
-async function initFirebaseIfConfigured(){
-  try{
-    const c = await window.storage.get('firebase-config', false);
-    fbConfig = JSON.parse(c.value);
-  }catch(e){ fbConfig = null; return; }
-  await connectFirebase(fbConfig, true);
+/* ---------------- boot ---------------- */
+function loadConfig(){
+  const raw = lsGet('cfb-firebase-config');
+  if(raw){
+    try{ fbConfig = JSON.parse(raw); }catch(e){ fbConfig = null; }
+  }
+  const a = lsGet('cfb-active-team');
+  if(a) state.activeTeam = a;
 }
 
 function loadScript(src){
@@ -512,40 +448,72 @@ async function connectFirebase(config, silent){
     if(!window.firebase){
       await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
       await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js');
     }
     fbApp = window.firebase.apps && window.firebase.apps.length ? window.firebase.app() : window.firebase.initializeApp(config);
     fbDb = window.firebase.firestore();
-    subscribeAllTeams();
-    if(statusEl) statusEl.textContent = 'Connected. Teams with a matching schedules/{id} document will show a "synced" badge and update automatically.';
+    fbFns = window.firebase.functions();
+    subscribeTeams();
+    if(statusEl) statusEl.textContent = 'Connected.';
   }catch(e){
     console.error('Firebase connect failed', e);
-    if(!silent && statusEl) statusEl.textContent = 'Could not connect. This preview may be sandboxed from outside scripts — try downloading the file and opening it, or hosting it, outside the chat.';
+    if(!silent && statusEl) statusEl.textContent = 'Could not connect — double check the pasted config.';
+    fbApp = null; fbDb = null; fbFns = null;
+    render();
   }
 }
 
-function subscribeAllTeams(){
+function subscribeTeams(){
   if(!fbDb) return;
-  state.teams.forEach(team=>{
-    if(fbUnsubs[team.id]) return;
-    fbUnsubs[team.id] = fbDb.collection('schedules').doc(team.id).onSnapshot(doc=>{
-      if(doc.exists){
-        const data = doc.data();
-        syncedGamesByTeam[team.id] = data.games || [];
-      } else {
-        delete syncedGamesByTeam[team.id];
-      }
-      render();
-    }, err=>console.error('snapshot error', err));
+  if(teamsUnsub) teamsUnsub();
+  teamsUnsub = fbDb.collection('teams').orderBy('addedAt','asc').onSnapshot(qs=>{
+    state.teams = qs.docs.map(d=>({ id:d.id, ...d.data() }));
+    if(!state.activeTeam || !state.teams.find(t=>t.id===state.activeTeam)){
+      state.activeTeam = state.teams[0] ? state.teams[0].id : null;
+    }
+    subscribeActiveSchedule();
+    render();
+  }, err=>{
+    console.error('teams snapshot error', err);
   });
 }
 
-async function saveTeams(){
-  try{ await window.storage.set('schedule-teams-v2', JSON.stringify(state.teams), false); }
-  catch(e){ console.error('save teams failed', e); }
+function subscribeActiveSchedule(){
+  if(!fbDb || !state.activeTeam){ if(scheduleUnsub){ scheduleUnsub(); scheduleUnsub=null; } render(); return; }
+  if(scheduleUnsub) scheduleUnsub();
+  scheduleUnsub = fbDb.collection('schedules').doc(state.activeTeam).onSnapshot(doc=>{
+    schedulesByTeam[state.activeTeam] = doc.exists ? doc.data() : null;
+    render();
+  }, err=>console.error('schedule snapshot error', err));
 }
-async function saveActive(){
-  try{ await window.storage.set('active-team-v2', state.activeTeam, false); }
-  catch(e){ console.error('save active failed', e); }
+
+/* ---------------- rendering ---------------- */
+function render(){ renderTabs(); renderBoard(); }
+
+function escapeHtml(str){
+  if(str===undefined || str===null) return '';
+  return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+
+function renderTabs(){
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  state.teams.forEach(team=>{
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (team.id===state.activeTeam ? ' active' : '');
+    tab.innerHTML = `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span><span>${escapeHtml(team.school)}</span><span class="close" data-remove="${team.id}" title="Remove team">&times;</span>`;
+    tab.addEventListener('click', (e)=>{
+      if(e.target.dataset.remove){ e.stopPropagation(); removeTeam(e.target.dataset.remove); return; }
+      state.activeTeam = team.id; addingTeam=false; lsSet('cfb-active-team', team.id);
+      subscribeActiveSchedule(); render();
+    });
+    tabs.appendChild(tab);
+  });
+  const addBtn = document.createElement('div');
+  addBtn.className = 'tab-add';
+  addBtn.textContent = '+ Add team';
+  addBtn.addEventListener('click', ()=>{ addingTeam = true; addMsg=''; render(); });
+  tabs.appendChild(addBtn);
 }
 
 function fmtDate(iso){
@@ -555,84 +523,64 @@ function fmtDate(iso){
   return {dow, md};
 }
 
-function getTeam(id){ return state.teams.find(t=>t.id===id); }
-
-function computeRecord(team){
+function computeRecord(games){
   let w=0,l=0;
-  team.games.forEach(g=>{ if(g.result==='W') w++; if(g.result==='L') l++; });
+  (games||[]).forEach(g=>{ if(g.result==='W') w++; if(g.result==='L') l++; });
   return {w,l};
 }
 
-function render(){
-  renderTabs();
-  renderBoard();
-}
-
-function renderTabs(){
-  const tabs = document.getElementById('tabs');
-  tabs.innerHTML = '';
-  state.teams.forEach(team=>{
-    const tab = document.createElement('div');
-    tab.className = 'tab' + (team.id===state.activeTeam ? ' active' : '');
-    tab.innerHTML = `<span class="dot" style="background:${team.color}"></span><span>${escapeHtml(team.name)}</span>` +
-      (state.teams.length>1 ? `<span class="close" data-remove="${team.id}" title="Remove team">&times;</span>` : '');
-    tab.addEventListener('click', (e)=>{
-      if(e.target.dataset.remove){ e.stopPropagation(); removeTeam(e.target.dataset.remove); return; }
-      state.activeTeam = team.id; addingTeam=false; saveActive(); render();
-    });
-    tabs.appendChild(tab);
-  });
-  const addBtn = document.createElement('div');
-  addBtn.className = 'tab-add';
-  addBtn.textContent = '+ Add team';
-  addBtn.addEventListener('click', ()=>{ addingTeam = true; render(); });
-  tabs.appendChild(addBtn);
+function timeAgo(ts){
+  if(!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const secs = Math.max(0, Math.round((Date.now()-d.getTime())/1000));
+  if(secs<60) return 'just now';
+  const mins = Math.round(secs/60);
+  if(mins<60) return `${mins}m ago`;
+  const hrs = Math.round(mins/60);
+  if(hrs<24) return `${hrs}h ago`;
+  const days = Math.round(hrs/24);
+  return `${days}d ago`;
 }
 
 function renderBoard(){
   const board = document.getElementById('board');
   board.innerHTML = '';
 
+  if(!fbConfig){
+    board.innerHTML = `<div class="empty">Connect your Firebase project (Settings, above) to start tracking teams.<br><br>See <code>SETUP.md</code> for the full walkthrough.</div>`;
+    return;
+  }
+
   if(addingTeam){
     board.appendChild(buildNewTeamPanel());
     return;
   }
 
-  const team = getTeam(state.activeTeam);
+  const team = state.teams.find(t=>t.id===state.activeTeam);
   if(!team){
-    board.innerHTML = '<div class="empty">No team selected. Add one to get started.</div>';
+    board.innerHTML = '<div class="empty">No teams yet — click "+ Add team" to get started.</div>';
     return;
   }
 
-  const isSynced = !!syncedGamesByTeam[team.id];
-  const games = isSynced ? syncedGamesByTeam[team.id] : team.games;
+  const sched = schedulesByTeam[team.id];
+  const games = sched ? sched.games : null;
 
   const head = document.createElement('div');
   head.className = 'board-head';
-  const rec = computeRecord({games});
-  head.innerHTML = `<div class="record"><span class="win">${rec.w}</span>-<span class="loss">${rec.l}</span><span class="record-label">2026 record</span></div>`;
-  if(isSynced){
-    const badge = document.createElement('span');
-    badge.className = 'result W';
-    badge.style.fontFamily = "'Inter',sans-serif";
-    badge.style.fontWeight = '600';
-    badge.textContent = 'Synced nightly';
-    head.appendChild(badge);
+  if(games){
+    const rec = computeRecord(games);
+    head.innerHTML = `<div class="record"><span class="win">${rec.w}</span>-<span class="loss">${rec.l}</span><span class="record-label">${currentSeasonYear()} record</span></div>`;
+    const note = document.createElement('div');
+    note.className = 'synced-note';
+    note.textContent = sched.updatedAt ? `Updated ${timeAgo(sched.updatedAt)}` : '';
+    head.appendChild(note);
   } else {
-    const addGameBtn = document.createElement('button');
-    addGameBtn.className = 'small-btn ghost';
-    addGameBtn.textContent = '+ Add / edit games';
-    addGameBtn.addEventListener('click', ()=>{
-      draftRows[team.id] = team.games.filter(g=>!g.bye).map(g=>({...g}));
-      team._editing = true;
-      render();
-    });
-    head.appendChild(addGameBtn);
+    head.innerHTML = `<div class="record"><span class="record-label">Fetching schedule&hellip;</span></div>`;
   }
   board.appendChild(head);
 
-  if(team._editing && !isSynced){
-    board.appendChild(buildEditGamesPanel(team));
+  if(!games){
+    board.innerHTML += '<div class="empty">Hang tight — the schedule is being fetched for the first time.</div>';
     return;
   }
 
@@ -643,7 +591,7 @@ function renderBoard(){
       <th>Date</th>
       <th>Opponent</th>
       <th>Time</th>
-      <th>TV</th>
+      <th>TV / Streaming</th>
       <th>Result</th>
     </tr></thead>`;
   const tbody = document.createElement('tbody');
@@ -652,159 +600,31 @@ function renderBoard(){
     const tr = document.createElement('tr');
     if(g.bye){
       tr.className='bye';
-      tr.innerHTML = `<td class="wk">-</td><td class="date">${fmtDate(g.date).md}</td><td colspan="4" style="color:var(--ink-soft);font-style:italic;">Open date — bye week</td>`;
+      tr.innerHTML = `<td class="wk">-</td><td class="date">Wk ${escapeHtml(g.week)}</td><td colspan="4" style="color:var(--ink-soft);font-style:italic;">Open date — bye week</td>`;
       tbody.appendChild(tr);
       return;
     }
-    const dt = fmtDate(g.date);
+    const dt = g.date ? fmtDate(g.date) : {dow:'',md:'TBA'};
     const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
     tr.innerHTML = `
       <td class="wk">${escapeHtml(g.week)}</td>
       <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
       <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
-      <td class="${isSynced?'':'editable'}" data-field="time" data-game="${g.id}" data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
-      <td class="${isSynced?'':'editable'} tv" data-field="tv" data-game="${g.id}" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
-      <td class="${isSynced?'':'editable'}" data-field="result" data-game="${g.id}" data-label="Result">${resultBadge(g)}</td>
+      <td data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
+      <td class="tv" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
+      <td data-label="Result">${resultBadge(g)}</td>
     `;
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
   board.appendChild(table);
-
-  if(!isSynced){
-    board.querySelectorAll('.editable').forEach(cell=>{
-      cell.addEventListener('click', ()=>editCell(cell, team));
-    });
-  }
 }
 
 function resultBadge(g){
   if(g.result==='W') return `<span class="result W">W ${escapeHtml(g.score||'')}</span>`;
   if(g.result==='L') return `<span class="result L">L ${escapeHtml(g.score||'')}</span>`;
-  return `<span class="result pending">—</span>`;
-}
-
-function editCell(cell, team){
-  if(cell.querySelector('input,select')) return;
-  const field = cell.dataset.field;
-  const gameId = cell.dataset.game;
-  const game = team.games.find(g=>g.id===gameId);
-
-  if(field==='result'){
-    cell.innerHTML = `
-      <select class="r-select">
-        <option value="" ${!game.result?'selected':''}>—</option>
-        <option value="W" ${game.result==='W'?'selected':''}>Win</option>
-        <option value="L" ${game.result==='L'?'selected':''}>Loss</option>
-      </select>
-      <input class="r-score" type="text" placeholder="e.g. 31-17" value="${escapeHtml(game.score||'')}" style="margin-top:4px;">
-    `;
-    const sel = cell.querySelector('.r-select');
-    const score = cell.querySelector('.r-score');
-    sel.focus();
-    const commit = async ()=>{
-      game.result = sel.value;
-      game.score = score.value.trim();
-      await saveTeams();
-      render();
-    };
-    sel.addEventListener('change', commit);
-    score.addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); });
-    score.addEventListener('blur', commit);
-    return;
-  }
-
-  const val = game[field] || '';
-  cell.innerHTML = `<input type="text" value="${escapeHtml(val)}">`;
-  const input = cell.querySelector('input');
-  input.focus();
-  input.select();
-  const commit = async ()=>{
-    game[field] = input.value.trim();
-    await saveTeams();
-    render();
-  };
-  input.addEventListener('keydown', e=>{ if(e.key==='Enter') input.blur(); if(e.key==='Escape'){ render(); } });
-  input.addEventListener('blur', commit);
-}
-
-function buildEditGamesPanel(team){
-  const panel = document.createElement('div');
-  panel.className = 'panel';
-  panel.innerHTML = `<h3>Games for ${escapeHtml(team.name)}</h3>`;
-
-  const header = document.createElement('div');
-  header.className = 'grid-row';
-  header.style.fontSize='12px';
-  header.style.color='var(--ink-soft)';
-  header.innerHTML = `<div>Opponent</div><div>Date</div><div>Site</div><div>Time</div><div>TV</div><div></div>`;
-  panel.appendChild(header);
-
-  const rows = draftRows[team.id];
-  rows.forEach((row, idx)=>{
-    const r = document.createElement('div');
-    r.className = 'grid-row';
-    r.innerHTML = `
-      <input type="text" value="${escapeHtml(row.opponent)}" data-f="opponent" data-i="${idx}" placeholder="Opponent">
-      <input type="date" value="${escapeHtml(row.date)}" data-f="date" data-i="${idx}">
-      <select data-f="site" data-i="${idx}">
-        <option value="H" ${row.site==='H'?'selected':''}>Home</option>
-        <option value="A" ${row.site==='A'?'selected':''}>Away</option>
-        <option value="N" ${row.site==='N'?'selected':''}>Neutral</option>
-      </select>
-      <input type="text" value="${escapeHtml(row.time)}" data-f="time" data-i="${idx}" placeholder="TBA">
-      <input type="text" value="${escapeHtml(row.tv)}" data-f="tv" data-i="${idx}" placeholder="TBA">
-      <span class="del-row" style="opacity:1;" data-del="${idx}">&times;</span>
-    `;
-    panel.appendChild(r);
-  });
-
-  panel.querySelectorAll('input,select').forEach(inp=>{
-    inp.addEventListener('input', ()=>{
-      const i = +inp.dataset.i, f = inp.dataset.f;
-      rows[i][f] = inp.value;
-    });
-  });
-  panel.querySelectorAll('[data-del]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      rows.splice(+btn.dataset.del,1);
-      renumber(rows);
-      renderBoard();
-    });
-  });
-
-  const actions = document.createElement('div');
-  actions.className = 'panel-actions';
-  actions.innerHTML = `
-    <button class="small-btn ghost" id="addRowBtn">+ Add game</button>
-    <button class="small-btn" id="saveGamesBtn">Save games</button>
-    <button class="small-btn ghost" id="cancelGamesBtn">Cancel</button>
-  `;
-  panel.appendChild(actions);
-
-  panel.querySelector('#addRowBtn').addEventListener('click', ()=>{
-    rows.push({id:'g'+Date.now(), week:'', date:'', opponent:'', site:'H', place:'', time:'', tv:'', result:'', score:''});
-    renumber(rows);
-    renderBoard();
-  });
-  panel.querySelector('#saveGamesBtn').addEventListener('click', async ()=>{
-    const cleaned = rows.filter(r=>r.opponent && r.date).sort((a,b)=> a.date.localeCompare(b.date));
-    renumber(cleaned);
-    team.games = cleaned;
-    team._editing = false;
-    await saveTeams();
-    render();
-  });
-  panel.querySelector('#cancelGamesBtn').addEventListener('click', ()=>{
-    team._editing = false;
-    render();
-  });
-
-  return panel;
-}
-
-function renumber(rows){
-  rows.forEach((r,i)=>{ r.week = String(i+1); });
+  if(g.result==='T') return `<span class="result T">T ${escapeHtml(g.score||'')}</span>`;
+  return `<span class="result pending">&mdash;</span>`;
 }
 
 function buildNewTeamPanel(){
@@ -816,55 +636,56 @@ function buildNewTeamPanel(){
   const form = document.createElement('div');
   form.className = 'new-team-form';
   form.innerHTML = `
-    <input type="text" id="newTeamName" placeholder="Team name (e.g. Georgia Bulldogs)">
-    <input type="color" id="newTeamColor" value="#03244E" title="Team color">
+    <input type="text" id="newTeamName" list="fbsSchools" placeholder="Team name (e.g. Georgia Bulldogs)" autocomplete="off">
     <button class="small-btn" id="createTeamBtn">Add team</button>
     <button class="small-btn ghost" id="cancelTeamBtn">Cancel</button>
   `;
   panel.appendChild(form);
-  const note = document.createElement('div');
-  note.className = 'footnote';
-  note.style.marginTop = '10px';
-  note.textContent = "You'll add its games next, or paste the team's schedule into the chat and ask Claude to fill this file in for you.";
-  panel.appendChild(note);
+  const msg = document.createElement('div');
+  msg.className = 'form-msg' + (addMsg.error ? ' error' : ' info');
+  msg.textContent = addMsg.text || "Type any FBS school name — its full schedule, TV info, and scores load automatically.";
+  panel.appendChild(msg);
 
-  panel.querySelector('#cancelTeamBtn').addEventListener('click', ()=>{ addingTeam=false; render(); });
-  panel.querySelector('#createTeamBtn').addEventListener('click', async ()=>{
-    const nameInput = panel.querySelector('#newTeamName');
+  panel.querySelector('#cancelTeamBtn').addEventListener('click', ()=>{ addingTeam=false; addMsg=''; render(); });
+
+  const nameInput = panel.querySelector('#newTeamName');
+  const createBtn = panel.querySelector('#createTeamBtn');
+  if(addBusy){ createBtn.disabled = true; createBtn.textContent = 'Adding…'; }
+
+  const submit = async ()=>{
     const name = nameInput.value.trim();
     if(!name){ nameInput.focus(); return; }
-    const color = panel.querySelector('#newTeamColor').value;
-    const id = 'team-' + Date.now();
-    const team = { id, name, color, games: [] };
-    state.teams.push(team);
-    state.activeTeam = id;
-    addingTeam = false;
-    team._editing = true;
-    draftRows[id] = [];
-    await saveTeams();
-    await saveActive();
-    render();
-  });
+    addBusy = true; addMsg = {text:'Looking up the schedule…'}; render();
+    try{
+      const addTeam = fbFns.httpsCallable('addTeam');
+      const res = await addTeam({ school: name, year: currentSeasonYear() });
+      state.activeTeam = res.data.teamId;
+      lsSet('cfb-active-team', res.data.teamId);
+      addingTeam = false; addBusy = false; addMsg = '';
+      subscribeActiveSchedule();
+      render();
+    }catch(err){
+      console.error('addTeam failed', err);
+      addBusy = false;
+      addMsg = { error:true, text: (err && err.message) || "Couldn't add that team. Check the spelling and try again." };
+      render();
+    }
+  };
+  createBtn.addEventListener('click', submit);
+  nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
 
   return panel;
 }
 
 async function removeTeam(id){
-  state.teams = state.teams.filter(t=>t.id!==id);
-  if(state.activeTeam===id){
-    state.activeTeam = state.teams[0] ? state.teams[0].id : null;
-    await saveActive();
-  }
-  await saveTeams();
-  render();
+  if(!fbFns) return;
+  try{
+    await fbFns.httpsCallable('removeTeam')({ teamId: id });
+  }catch(e){ console.error('removeTeam failed', e); }
 }
 
-function escapeHtml(str){
-  if(str===undefined || str===null) return '';
-  return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
-}
-
-document.getElementById('connectLink').addEventListener('click', ()=>{
+/* ---------------- settings panel ---------------- */
+document.getElementById('settingsToggle').addEventListener('click', ()=>{
   const panel = document.getElementById('firebasePanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
   if(fbConfig) document.getElementById('fbConfigInput').value = JSON.stringify(fbConfig, null, 2);
@@ -878,25 +699,26 @@ document.getElementById('saveFbConfigBtn').addEventListener('click', async ()=>{
   let parsed;
   try{ parsed = JSON.parse(raw); }
   catch(e){ statusEl.textContent = "That doesn't look like valid JSON — copy the config object exactly as Firebase shows it."; return; }
-  try{
-    await window.storage.set('firebase-config', JSON.stringify(parsed), false);
-    fbConfig = parsed;
-    statusEl.textContent = 'Connecting...';
-    await connectFirebase(parsed, false);
-  }catch(e){
-    statusEl.textContent = 'Could not save config.';
-  }
+  lsSet('cfb-firebase-config', JSON.stringify(parsed));
+  fbConfig = parsed;
+  statusEl.textContent = 'Connecting...';
+  await connectFirebase(parsed, false);
+  render();
 });
-document.getElementById('disconnectFbBtn').addEventListener('click', async ()=>{
-  try{ await window.storage.delete('firebase-config', false); }catch(e){}
+document.getElementById('disconnectFbBtn').addEventListener('click', ()=>{
+  lsDel('cfb-firebase-config');
   fbConfig = null;
-  Object.keys(fbUnsubs).forEach(id=>{ fbUnsubs[id](); delete fbUnsubs[id]; });
-  Object.keys(syncedGamesByTeam).forEach(id=> delete syncedGamesByTeam[id]);
-  document.getElementById('fbStatus').textContent = 'Disconnected. Showing locally-stored data again.';
+  if(teamsUnsub){ teamsUnsub(); teamsUnsub=null; }
+  if(scheduleUnsub){ scheduleUnsub(); scheduleUnsub=null; }
+  state.teams = [];
+  document.getElementById('fbStatus').textContent = 'Disconnected.';
   render();
 });
 
-loadState();
+/* ---------------- go ---------------- */
+loadConfig();
+render();
+if(fbConfig) connectFirebase(fbConfig, true);
 </script>
 </body>
 </html>
