@@ -399,6 +399,23 @@
 </datalist>
 
 <script>
+/* ---------------- Firebase web config ----------------
+   This is NOT a secret — Firebase web configs are meant to be public in
+   client-side code; the real security boundary is your Firestore rules
+   (read-only for everyone) plus the Cloud Functions (which hold the actual
+   CFBD API key server-side). Fill this in once with your project's config
+   from Firebase console → Project settings → Your apps → SDK setup, then
+   push the file to GitHub Pages — every visitor connects automatically,
+   with no per-device paste-in step required. */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
 /* ---------------- storage (plain localStorage — this is a real hosted page,
    not a claude.ai artifact preview, so no window.storage runtime here) ---------------- */
 function lsGet(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
@@ -424,9 +441,16 @@ document.getElementById('seasonLabel').textContent = currentSeasonYear() + ' sea
 
 /* ---------------- boot ---------------- */
 function loadConfig(){
-  const raw = lsGet('cfb-firebase-config');
-  if(raw){
-    try{ fbConfig = JSON.parse(raw); }catch(e){ fbConfig = null; }
+  // Hardcoded config wins for every visitor. Local-storage config (set via
+  // the Settings panel) is only a fallback, useful while testing before
+  // FIREBASE_CONFIG is filled in above.
+  if(FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey){
+    fbConfig = FIREBASE_CONFIG;
+  } else {
+    const raw = lsGet('cfb-firebase-config');
+    if(raw){
+      try{ fbConfig = JSON.parse(raw); }catch(e){ fbConfig = null; }
+    }
   }
   const a = lsGet('cfb-active-team');
   if(a) state.activeTeam = a;
@@ -547,7 +571,7 @@ function renderBoard(){
   board.innerHTML = '';
 
   if(!fbConfig){
-    board.innerHTML = `<div class="empty">Connect your Firebase project (Settings, above) to start tracking teams.<br><br>See <code>SETUP.md</code> for the full walkthrough.</div>`;
+    board.innerHTML = `<div class="empty">Firebase isn't configured yet. Edit the <code>FIREBASE_CONFIG</code> object near the top of this file's script (or use Settings, above, for local testing).<br><br>See <code>SETUP.md</code> for the full walkthrough.</div>`;
     return;
   }
 
