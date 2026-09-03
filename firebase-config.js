@@ -10,10 +10,11 @@
    future updates to index.html never touch or overwrite these values —
    you only ever edit this file when you change Firebase projects. */
 const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAz6BELBLMBoeWYq2yzmpRD3EinGAl9SxA",
+  authDomain: "college-football-f3514.firebaseapp.com",
+  projectId: "college-football-f3514",
+  storageBucket: "college-football-f3514.firebasestorage.app",
+  messagingSenderId: "501201392822",
+  appId: "1:501201392822:web:fd0b5cb3e077c9caf10217",
+  measurementId: "G-Z0QBGJJ7GZ"
 };
