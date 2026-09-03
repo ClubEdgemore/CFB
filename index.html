@@ -379,13 +379,12 @@
    push the file to GitHub Pages — every visitor connects automatically,
    with no per-device paste-in step required. */
 const FIREBASE_CONFIG = {
-   apiKey: "AIzaSyAz6BELBLMBoeWYq2yzmpRD3EinGAl9SxA",
-  authDomain: "college-football-f3514.firebaseapp.com",
-  projectId: "college-football-f3514",
-  storageBucket: "college-football-f3514.firebasestorage.app",
-  messagingSenderId: "501201392822",
-  appId: "1:501201392822:web:fd0b5cb3e077c9caf10217",
-  measurementId: "G-Z0QBGJJ7GZ"
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
 };
 
 /* ---------------- storage (plain localStorage — this is a real hosted page,
@@ -393,6 +392,23 @@ const FIREBASE_CONFIG = {
 function lsGet(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
 function lsSet(key,val){ try{ localStorage.setItem(key,val); }catch(e){} }
 function lsDel(key){ try{ localStorage.removeItem(key); }catch(e){} }
+
+/* ---------------- per-browser session ----------------
+   Each visitor gets their own private, isolated list of teams — like a
+   separate karaoke room per device — instead of one shared global list.
+   A random session ID is generated once and stashed in this browser's
+   localStorage; it namespaces every read/write in Firestore. */
+function getSessionId(){
+  let id = lsGet('cfb-session-id');
+  if(!id){
+    id = (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID()
+      : ('sess-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+    lsSet('cfb-session-id', id);
+  }
+  return id;
+}
+const SESSION_ID = getSessionId();
 
 let state = { teams: [], activeTeam: null };
 let fbConfig = null;
@@ -446,10 +462,14 @@ async function connectFirebase(config){
   }
 }
 
+function sessionRef(){
+  return fbDb.collection('sessions').doc(SESSION_ID);
+}
+
 function subscribeTeams(){
   if(!fbDb) return;
   if(teamsUnsub) teamsUnsub();
-  teamsUnsub = fbDb.collection('teams').orderBy('addedAt','asc').onSnapshot(qs=>{
+  teamsUnsub = sessionRef().collection('teams').orderBy('addedAt','asc').onSnapshot(qs=>{
     state.teams = qs.docs.map(d=>({ id:d.id, ...d.data() }));
     if(!state.activeTeam || !state.teams.find(t=>t.id===state.activeTeam)){
       state.activeTeam = state.teams[0] ? state.teams[0].id : null;
@@ -464,7 +484,7 @@ function subscribeTeams(){
 function subscribeActiveSchedule(){
   if(!fbDb || !state.activeTeam){ if(scheduleUnsub){ scheduleUnsub(); scheduleUnsub=null; } render(); return; }
   if(scheduleUnsub) scheduleUnsub();
-  scheduleUnsub = fbDb.collection('schedules').doc(state.activeTeam).onSnapshot(doc=>{
+  scheduleUnsub = sessionRef().collection('schedules').doc(state.activeTeam).onSnapshot(doc=>{
     schedulesByTeam[state.activeTeam] = doc.exists ? doc.data() : null;
     render();
   }, err=>console.error('schedule snapshot error', err));
@@ -641,7 +661,7 @@ function buildNewTeamPanel(){
     addBusy = true; addMsg = {text:'Looking up the schedule…'}; render();
     try{
       const addTeam = fbFns.httpsCallable('addTeam');
-      const res = await addTeam({ school: name, year: currentSeasonYear() });
+      const res = await addTeam({ school: name, year: currentSeasonYear(), sessionId: SESSION_ID });
       state.activeTeam = res.data.teamId;
       lsSet('cfb-active-team', res.data.teamId);
       addingTeam = false; addBusy = false; addMsg = '';
@@ -663,7 +683,7 @@ function buildNewTeamPanel(){
 async function removeTeam(id){
   if(!fbFns) return;
   try{
-    await fbFns.httpsCallable('removeTeam')({ teamId: id });
+    await fbFns.httpsCallable('removeTeam')({ teamId: id, sessionId: SESSION_ID });
   }catch(e){ console.error('removeTeam failed', e); }
 }
 
