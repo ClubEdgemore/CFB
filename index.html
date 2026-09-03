@@ -58,14 +58,6 @@
     align-items:center;
     gap:14px;
   }
-  .gear{
-    cursor:pointer;
-    font-size:16px;
-    color:var(--ink-soft);
-    user-select:none;
-  }
-  .gear:hover{color:var(--ink);}
-
   .tabs{
     display:flex;
     flex-wrap:wrap;
@@ -268,14 +260,10 @@
   .footnote{margin-top:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
   .footnote code{background:#F3EFE6;padding:1px 5px;border-radius:3px;}
 
-  #fbConfigInput{
-    width:100%;font-family:monospace;font-size:12.5px;padding:8px;border:1px solid var(--line);border-radius:5px;
-  }
-
   @media (max-width:640px){
     .masthead h1{font-size:26px;}
 
-    .new-team-form input, #fbConfigInput{font-size:16px !important;}
+    .new-team-form input{font-size:16px !important;}
 
     table, thead, tbody, tr{display:block;width:100%;}
     thead{display:none;}
@@ -327,7 +315,6 @@
     <h1>Football Schedule Tracker</h1>
     <div class="season">
       <span id="seasonLabel"></span>
-      <span class="gear" id="settingsToggle" title="Firebase settings">&#9881;&#65039; Settings</span>
     </div>
   </div>
 
@@ -339,28 +326,6 @@
     <a href="https://collegefootballdata.com" target="_blank" rel="noopener">College Football Data</a> API the moment you add a team,
     then refreshed every night by a Cloud Function. Nothing here is editable by hand &mdash; if something looks off, it'll usually
     correct itself on the next nightly refresh.
-  </div>
-
-  <div id="firebasePanel" class="panel" style="display:none;margin-top:10px;">
-    <h3>Connect to your Firebase project</h3>
-    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">
-      Paste the Firebase web config from your project settings (Project settings &rarr; General &rarr; Your apps &rarr; SDK setup).
-      This only identifies which Firestore database to read from &mdash; see SETUP.md for the full walkthrough, including deploying
-      the Cloud Functions that actually fetch schedules.
-    </p>
-    <textarea id="fbConfigInput" rows="5" placeholder='{ apiKey: "AIzaSyAz6BELBLMBoeWYq2yzmpRD3EinGAl9SxA",
-  authDomain: "college-football-f3514.firebaseapp.com",
-  projectId: "college-football-f3514",
-  storageBucket: "college-football-f3514.firebasestorage.app",
-  messagingSenderId: "501201392822",
-  appId: "1:501201392822:web:fd0b5cb3e077c9caf10217",
-  measurementId: "G-Z0QBGJJ7GZ"}'></textarea>
-    <div class="panel-actions">
-      <button class="small-btn" id="saveFbConfigBtn">Connect</button>
-      <button class="small-btn ghost" id="cancelFbConfigBtn">Cancel</button>
-      <button class="small-btn danger" id="disconnectFbBtn">Disconnect</button>
-    </div>
-    <div id="fbStatus" style="font-size:12.5px;margin-top:8px;color:var(--ink-soft);"></div>
   </div>
 </div>
 
@@ -405,6 +370,23 @@
 </datalist>
 
 <script>
+/* ---------------- Firebase web config ----------------
+   This is NOT a secret — Firebase web configs are meant to be public in
+   client-side code; the real security boundary is your Firestore rules
+   (read-only for everyone) plus the Cloud Functions (which hold the actual
+   CFBD API key server-side). Fill this in once with your project's config
+   from Firebase console → Project settings → Your apps → SDK setup, then
+   push the file to GitHub Pages — every visitor connects automatically,
+   with no per-device paste-in step required. */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
 /* ---------------- storage (plain localStorage — this is a real hosted page,
    not a claude.ai artifact preview, so no window.storage runtime here) ---------------- */
 function lsGet(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
@@ -430,10 +412,7 @@ document.getElementById('seasonLabel').textContent = currentSeasonYear() + ' sea
 
 /* ---------------- boot ---------------- */
 function loadConfig(){
-  const raw = lsGet('cfb-firebase-config');
-  if(raw){
-    try{ fbConfig = JSON.parse(raw); }catch(e){ fbConfig = null; }
-  }
+  fbConfig = (FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey) ? FIREBASE_CONFIG : null;
   const a = lsGet('cfb-active-team');
   if(a) state.activeTeam = a;
 }
@@ -448,8 +427,7 @@ function loadScript(src){
   });
 }
 
-async function connectFirebase(config, silent){
-  const statusEl = document.getElementById('fbStatus');
+async function connectFirebase(config){
   try{
     if(!window.firebase){
       await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
@@ -460,10 +438,8 @@ async function connectFirebase(config, silent){
     fbDb = window.firebase.firestore();
     fbFns = window.firebase.functions();
     subscribeTeams();
-    if(statusEl) statusEl.textContent = 'Connected.';
   }catch(e){
     console.error('Firebase connect failed', e);
-    if(!silent && statusEl) statusEl.textContent = 'Could not connect — double check the pasted config.';
     fbApp = null; fbDb = null; fbFns = null;
     render();
   }
@@ -553,7 +529,7 @@ function renderBoard(){
   board.innerHTML = '';
 
   if(!fbConfig){
-    board.innerHTML = `<div class="empty">Connect your Firebase project (Settings, above) to start tracking teams.<br><br>See <code>SETUP.md</code> for the full walkthrough.</div>`;
+    board.innerHTML = `<div class="empty">Firebase isn't configured yet. Edit the <code>FIREBASE_CONFIG</code> object near the top of this file's script.<br><br>See <code>SETUP.md</code> for the full walkthrough.</div>`;
     return;
   }
 
@@ -690,41 +666,10 @@ async function removeTeam(id){
   }catch(e){ console.error('removeTeam failed', e); }
 }
 
-/* ---------------- settings panel ---------------- */
-document.getElementById('settingsToggle').addEventListener('click', ()=>{
-  const panel = document.getElementById('firebasePanel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  if(fbConfig) document.getElementById('fbConfigInput').value = JSON.stringify(fbConfig, null, 2);
-});
-document.getElementById('cancelFbConfigBtn').addEventListener('click', ()=>{
-  document.getElementById('firebasePanel').style.display = 'none';
-});
-document.getElementById('saveFbConfigBtn').addEventListener('click', async ()=>{
-  const raw = document.getElementById('fbConfigInput').value.trim();
-  const statusEl = document.getElementById('fbStatus');
-  let parsed;
-  try{ parsed = JSON.parse(raw); }
-  catch(e){ statusEl.textContent = "That doesn't look like valid JSON — copy the config object exactly as Firebase shows it."; return; }
-  lsSet('cfb-firebase-config', JSON.stringify(parsed));
-  fbConfig = parsed;
-  statusEl.textContent = 'Connecting...';
-  await connectFirebase(parsed, false);
-  render();
-});
-document.getElementById('disconnectFbBtn').addEventListener('click', ()=>{
-  lsDel('cfb-firebase-config');
-  fbConfig = null;
-  if(teamsUnsub){ teamsUnsub(); teamsUnsub=null; }
-  if(scheduleUnsub){ scheduleUnsub(); scheduleUnsub=null; }
-  state.teams = [];
-  document.getElementById('fbStatus').textContent = 'Disconnected.';
-  render();
-});
-
 /* ---------------- go ---------------- */
 loadConfig();
 render();
-if(fbConfig) connectFirebase(fbConfig, true);
+if(fbConfig) connectFirebase(fbConfig);
 </script>
 </body>
 </html>
