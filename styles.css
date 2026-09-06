@@ -49,6 +49,13 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   align-items:center;
   gap:14px;
 }
+.header-action{
+  cursor:pointer;
+  color:var(--ink-soft);
+  user-select:none;
+  font-size:13px;
+}
+.header-action:hover{color:var(--ink);}
 .next-game{
   display:flex;
   align-items:center;
@@ -166,6 +173,7 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .record .loss{color:var(--loss);}
 .record-label{font-size:12px;color:var(--ink-soft);font-weight:500;margin-left:6px;}
 .synced-note{font-size:12px;color:var(--ink-soft);}
+.board-head-actions{display:flex;align-items:center;gap:12px;}
 
 table{width:100%;border-collapse:collapse;}
 thead th{
@@ -319,4 +327,45 @@ tbody tr:hover .del-row{opacity:1;}
   td .opp{width:100%;justify-content:space-between;}
   td.opp-cell{order:-1;padding-top:2px;}
   .opp-info{text-align:right;}
+}
+
+/* ---------------- print ("Print all schedules") ----------------
+   #printView is built by buildPrintView() with every tracked team's full
+   schedule and kept invisible on screen; only @media print reveals it,
+   while everything else on the page is hidden for that print job. */
+.print-only{display:none;}
+
+@media print{
+  body *{visibility:hidden;}
+  .print-only, .print-only *{visibility:visible;}
+  .print-only{
+    display:block;
+    position:absolute;
+    left:0;
+    top:0;
+    width:100%;
+  }
+  .print-title{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:24px;
+    margin:0 0 18px;
+  }
+  .print-team{
+    margin-bottom:24px;
+    page-break-after:always;
+    break-after:page;
+  }
+  .print-team:last-child{page-break-after:auto;break-after:auto;}
+  .print-team h2{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:20px;
+    margin:0 0 8px;
+  }
+  .print-record{font-weight:400;color:#555;font-size:14px;}
+  .print-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .print-table th, .print-table td{
+    border:1px solid #999;
+    padding:4px 6px;
+    text-align:left;
+  }
 }

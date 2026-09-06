@@ -15,6 +15,7 @@
     <h1>Football Schedule Tracker</h1>
     <div class="season">
       <span id="seasonLabel"></span>
+      <span class="header-action" id="printAllBtn" title="Print every tracked team's schedule">&#128424;&#65039; Print all</span>
     </div>
   </div>
 
@@ -30,6 +31,11 @@
     correct itself on the next nightly refresh.
   </div>
 </div>
+
+<!-- Built and kept in sync by buildPrintView(); invisible on screen, shown
+     only when printing (see the @media print rules in styles.css) so that
+     "Print all" prints every tracked team, not just whichever tab is open. -->
+<div class="print-only" id="printView"></div>
 
 <!-- FBS school names, for the "Add team" autocomplete only. The Cloud Function
      looks up the real record server-side, so this list is just a typing aid
@@ -252,7 +258,7 @@ setInterval(()=>{
 }, 60000);
 
 /* ---------------- rendering ---------------- */
-function render(){ renderTabs(); renderBoard(); }
+function render(){ renderTabs(); renderBoard(); buildPrintView(); }
 
 function escapeHtml(str){
   if(str===undefined || str===null) return '';
@@ -306,6 +312,101 @@ function timeAgo(ts){
   return `${days}d ago`;
 }
 
+/* ---------------- add to calendar (.ics download, one per team) ---------------- */
+function icsEscape(str){
+  return String(str||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+}
+
+function toICSStamp(d){
+  return d.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+}
+
+function slugifyClient(name){
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+}
+
+function buildICS(team, games){
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Football Schedule Tracker//EN','CALSCALE:GREGORIAN'];
+  const stamp = toICSStamp(new Date());
+  (games||[]).filter(g=>!g.bye).forEach(g=>{
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${icsEscape(team.id + '-' + g.id)}@cfb-schedule-tracker`);
+    lines.push('DTSTAMP:' + stamp);
+    const siteLabel = g.site==='A' ? '@' : 'vs';
+    const summary = `${team.school} ${siteLabel} ${g.opponent}`;
+    if(g.kickoff && !g.tbd){
+      const start = new Date(g.kickoff);
+      const end = new Date(start.getTime() + 3.5*60*60*1000); // ~3.5hr game, a reasonable default
+      lines.push('DTSTART:' + toICSStamp(start));
+      lines.push('DTEND:' + toICSStamp(end));
+    } else if(g.date){
+      const startYmd = g.date.replace(/-/g,'');
+      const endDate = new Date(g.date + 'T00:00:00Z');
+      endDate.setUTCDate(endDate.getUTCDate() + 1); // ICS all-day DTEND is exclusive
+      const endYmd = endDate.toISOString().slice(0,10).replace(/-/g,'');
+      lines.push('DTSTART;VALUE=DATE:' + startYmd);
+      lines.push('DTEND;VALUE=DATE:' + endYmd);
+    }
+    lines.push('SUMMARY:' + icsEscape(summary));
+    if(g.place) lines.push('LOCATION:' + icsEscape(g.place));
+    if(g.tv) lines.push('DESCRIPTION:' + icsEscape('TV/Streaming: ' + g.tv));
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+function downloadICS(team, games){
+  const ics = buildICS(team, games);
+  const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = slugifyClient(team.school) + '-schedule.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* ---------------- print all schedules ----------------
+   Builds a hidden, print-only view of EVERY tracked team's schedule (not
+   just whichever tab is open), kept in sync on every render() so it's ready
+   the instant "Print all" triggers window.print(). */
+function buildPrintView(){
+  const el = document.getElementById('printView');
+  if(!el) return;
+  if(!state.teams.length){ el.innerHTML = ''; return; }
+
+  let html = `<h1 class="print-title">Football Schedule Tracker — ${currentSeasonYear()} season</h1>`;
+  state.teams.forEach(team=>{
+    const sched = schedulesByTeam[team.id];
+    const games = sched ? sched.games : [];
+    const rec = computeRecord(games);
+    html += `<section class="print-team"><h2>${escapeHtml(team.school)} <span class="print-record">(${rec.w}-${rec.l})</span></h2>`;
+    html += `<table class="print-table"><thead><tr><th>Wk</th><th>Date</th><th>Opponent</th><th>Time</th><th>TV/Streaming</th><th>Result</th></tr></thead><tbody>`;
+    games.forEach(g=>{
+      if(g.bye){
+        html += `<tr><td>-</td><td colspan="5"><em>Open date — bye week</em></td></tr>`;
+        return;
+      }
+      const dt = g.date ? fmtDate(g.date) : {dow:'',md:'TBA'};
+      const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
+      const resultText = g.result ? `${g.result} ${g.score||''}`.trim() : '—';
+      html += `<tr>
+        <td>${escapeHtml(g.week)}</td>
+        <td>${escapeHtml(dt.dow)} ${escapeHtml(dt.md)}</td>
+        <td>${siteLabel} ${escapeHtml(g.opponent)}${g.place?` — ${escapeHtml(g.place)}`:''}</td>
+        <td>${escapeHtml(g.time)||'TBA'}</td>
+        <td>${escapeHtml(g.tv)||'TBA'}</td>
+        <td>${escapeHtml(resultText)}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></section>`;
+  });
+  el.innerHTML = html;
+}
+
 function renderBoard(){
   const board = document.getElementById('board');
   board.innerHTML = '';
@@ -334,10 +435,23 @@ function renderBoard(){
   if(games){
     const rec = computeRecord(games);
     head.innerHTML = `<div class="record"><span class="win">${rec.w}</span>-<span class="loss">${rec.l}</span><span class="record-label">${currentSeasonYear()} record</span></div>`;
-    const note = document.createElement('div');
+
+    const actions = document.createElement('div');
+    actions.className = 'board-head-actions';
+
+    const note = document.createElement('span');
     note.className = 'synced-note';
     note.textContent = sched.updatedAt ? `Updated ${timeAgo(sched.updatedAt)}` : '';
-    head.appendChild(note);
+    actions.appendChild(note);
+
+    const icsBtn = document.createElement('button');
+    icsBtn.className = 'small-btn ghost';
+    icsBtn.textContent = '+ Calendar';
+    icsBtn.title = `Download ${team.school}'s schedule as a calendar file`;
+    icsBtn.addEventListener('click', ()=> downloadICS(team, games));
+    actions.appendChild(icsBtn);
+
+    head.appendChild(actions);
   } else {
     head.innerHTML = `<div class="record"><span class="record-label">Fetching schedule&hellip;</span></div>`;
   }
@@ -448,6 +562,11 @@ async function removeTeam(id){
     await fbFns.httpsCallable('removeTeam')({ teamId: id, sessionId: SESSION_ID });
   }catch(e){ console.error('removeTeam failed', e); }
 }
+
+document.getElementById('printAllBtn').addEventListener('click', ()=>{
+  buildPrintView(); // make sure it reflects the latest data before printing
+  window.print();
+});
 
 /* ---------------- go ---------------- */
 loadConfig();
