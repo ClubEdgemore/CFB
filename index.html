@@ -685,12 +685,20 @@ function buildWeekGames(){
     .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
 }
 
-/** "63% win chance" from the game's stored winProb (0-1, already oriented
- * to this tracked team — see functions/index.js), or null if CFBD hasn't
- * published a pregame probability for this game yet. */
-function winProbLabel(g){
+/** This team's win chance as a whole percent (0-100) from the game's stored
+ * winProb (already oriented to this tracked team — see functions/index.js),
+ * or null if CFBD hasn't published a pregame probability for this game yet. */
+function winProbPct(g){
   if(g.winProb===null || g.winProb===undefined) return null;
-  return `${Math.round(g.winProb*100)}% win chance`;
+  return Math.round(g.winProb*100);
+}
+
+/** 60%+ reads as favored (green), 40-60% a toss-up (yellow), under 40%
+ * an underdog (red). */
+function winProbColor(pct){
+  if(pct>=60) return 'var(--win)';
+  if(pct>=40) return 'var(--warn)';
+  return 'var(--loss)';
 }
 
 /** Free-tier "insights" — a one-line recent-form summary computed entirely
@@ -731,11 +739,11 @@ function buildWeekCard(team, g){
   card.className = 'week-card';
 
   const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-  const wpText = winProbLabel(g);
+  const wpPct = winProbPct(g);
   const insightsText = computeTeamInsights(team);
-  const insightsHtml = (wpText || insightsText) ? `
+  const insightsHtml = (wpPct!==null || insightsText) ? `
     <div class="week-card-insights">
-      ${wpText ? `<span class="win-prob">${escapeHtml(wpText)}</span>` : ''}
+      ${wpPct!==null ? `<span class="win-prob" style="color:${winProbColor(wpPct)}">${wpPct}% win chance</span>` : ''}
       ${insightsText ? `<span class="insight-line">${escapeHtml(insightsText)}</span>` : ''}
     </div>
   ` : '';
