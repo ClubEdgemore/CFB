@@ -21,14 +21,14 @@
    zero-blur drop-shadows in 8 directions to approximate a true outline. */
 .tab-logo, .opp-logo, .team-logo{
   filter:
-    drop-shadow(0.1px 0 0 #fff)
-    drop-shadow(-0.1px 0 0 #fff)
-    drop-shadow(0 0.1px 0 #fff)
-    drop-shadow(0 -0.1px 0 #fff)
-    drop-shadow(0.1px 0.1px 0 #fff)
-    drop-shadow(-0.1px 0.1px 0 #fff)
-    drop-shadow(0.1px -0.1px 0 #fff)
-    drop-shadow(-0.1x -0.1px 0 #fff);
+    drop-shadow(0.6px 0 0 #fff)
+    drop-shadow(-0.6px 0 0 #fff)
+    drop-shadow(0 0.6px 0 #fff)
+    drop-shadow(0 -0.6px 0 #fff)
+    drop-shadow(0.6px 0.6px 0 #fff)
+    drop-shadow(-0.6px 0.6px 0 #fff)
+    drop-shadow(0.6px -0.6px 0 #fff)
+    drop-shadow(-0.6px -0.6px 0 #fff);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html{-webkit-text-size-adjust:100%;}
