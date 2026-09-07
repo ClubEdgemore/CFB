@@ -1,16 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-Z0QBGJJ7GZ"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-Z0QBGJJ7GZ');
-</script>
-<meta name='impact-site-verification' value='1d138ebd-b3a9-4d61-8ef0-63e57260be9b'>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Saturday is for CFB</title>
@@ -18,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
 </head>
 <body>
 <div class="wrap">
@@ -607,20 +596,123 @@ function buildPrintView(){
 
 /* ---------------- homepage: news for every tracked team ---------------- */
 
-/** Which teams' news cards are collapsed — per-browser, remembered across
- * reloads via localStorage (a Set doesn't survive JSON round-trips, so it's
- * stored as a plain array). */
-function loadCollapsedNews(){
-  try{ return new Set(JSON.parse(lsGet('cfb-collapsed-news') || '[]')); }catch(e){ return new Set(); }
+/** News cards start collapsed by default (team.newsCollapsed is undefined
+ * until toggled at least once) and are remembered from then on — stored on
+ * the team doc itself via setNewsCollapsed, so a signed-in user's choice
+ * follows them across devices, same as everything else about that team. */
+function isNewsCollapsed(team){
+  return team.newsCollapsed !== false;
 }
-function saveCollapsedNews(){ lsSet('cfb-collapsed-news', JSON.stringify([...collapsedNewsTeams])); }
-let collapsedNewsTeams = loadCollapsedNews();
 
-function toggleNewsCollapsed(teamId){
-  if(collapsedNewsTeams.has(teamId)) collapsedNewsTeams.delete(teamId);
-  else collapsedNewsTeams.add(teamId);
-  saveCollapsedNews();
+async function toggleNewsCollapsed(team){
+  const next = !isNewsCollapsed(team);
+  team.newsCollapsed = next; // optimistic local update so the UI responds instantly
   render();
+  if(!fbFns) return;
+  try{
+    await fbFns.httpsCallable('setNewsCollapsed')({ sessionId: SESSION_ID, teamId: team.id, collapsed: next });
+  }catch(e){ console.error('setNewsCollapsed failed', e); }
+}
+
+/** A team's next not-yet-played game, same "skip byes/completed/undated"
+ * rule as recomputeNextGame but scoped to one team instead of across all of
+ * them (used by the "Your CFB Week" summary). */
+function nextGameForTeam(team){
+  const sched = schedulesByTeam[team.id];
+  if(!sched || !sched.games) return null;
+  let best = null;
+  sched.games.forEach(g=>{
+    if(g.bye || g.result || !g.date) return;
+    if(!best || g.date < best.date || (g.date === best.date && kickoffMs(g) < kickoffMs(best))) best = g;
+  });
+  return best;
+}
+
+/** For a game with a known kickoff, its exact time; for a TBD-time game,
+ * midnight (ET) on its date — either way, something sortable/comparable
+ * against a "within the next 7 days" window. */
+function gameTimeMs(g){
+  if(g.kickoff && !g.tbd) return new Date(g.kickoff).getTime();
+  if(g.date) return new Date(g.date + 'T12:00:00').getTime();
+  return Infinity;
+}
+
+/** Matches the "Saturday xx/xx X:XXPM" format from the mockup — full
+ * weekday name, numeric month/day, and (if kickoff time is known) a
+ * no-space AM/PM time; falls back to "Time TBA" otherwise. */
+function fmtWeekCardDate(g){
+  const base = g.kickoff ? new Date(g.kickoff) : new Date(g.date + 'T12:00:00');
+  const weekday = new Intl.DateTimeFormat('en-US', {weekday:'long', timeZone:'America/New_York'}).format(base);
+  const md = new Intl.DateTimeFormat('en-US', {month:'numeric', day:'numeric', timeZone:'America/New_York'}).format(base);
+  if(g.kickoff && !g.tbd){
+    const time = new Intl.DateTimeFormat('en-US', {hour:'numeric', minute:'2-digit', timeZone:'America/New_York'}).format(new Date(g.kickoff)).replace(' ','');
+    return `${weekday} ${md} ${time}`;
+  }
+  return `${weekday} ${md} · Time TBA`;
+}
+
+/** Teams with a game in the coming week first (soonest first), then every
+ * other tracked team after — one unified list, so a team's news card is
+ * never shown twice. */
+function buildHomeTeamList(){
+  const ONE_WEEK = 7*24*60*60*1000;
+  const now = Date.now();
+  const withGame = state.teams
+    .map(team=>({team, g: nextGameForTeam(team)}))
+    .filter(x=> x.g && gameTimeMs(x.g) >= now && gameTimeMs(x.g) <= now + ONE_WEEK)
+    .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
+  const seen = new Set(withGame.map(x=>x.team.id));
+  const rest = state.teams.filter(t=>!seen.has(t.id)).map(team=>({team, g:null}));
+  return [...withGame, ...rest];
+}
+
+/** One homepage card: this week's game (if any) at a glance up top, that
+ * team's news underneath, collapsed/expanded by clicking anywhere on the
+ * card (headline links inside still open normally). */
+function buildHomeTeamCard(team, g){
+  const card = document.createElement('div');
+  card.className = 'week-card';
+
+  const news = newsByTeam[team.id];
+  let articlesHtml;
+  if(!news){
+    articlesHtml = '<div class="news-empty">Fetching headlines&hellip;</div>';
+  } else if(!news.articles || !news.articles.length){
+    articlesHtml = '<div class="news-empty">No recent headlines found.</div>';
+  } else {
+    articlesHtml = news.articles.map(a => `
+      <a class="news-item" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
+        <span class="news-item-title">${escapeHtml(a.title)}</span>
+        <span class="news-item-meta">${escapeHtml(a.source||'')}</span>
+      </a>
+    `).join('');
+  }
+
+  const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
+  const dateHtml = g ? `<div class="week-card-date">${escapeHtml(fmtWeekCardDate(g))}</div>` : '';
+  const matchupHtml = g ? `<div class="week-card-matchup">${g.site==='A'?'@':'vs'} ${escapeHtml(g.opponent)}</div>` : '';
+  const collapsed = isNewsCollapsed(team);
+  card.className += collapsed ? ' collapsed' : '';
+
+  card.innerHTML = `
+    ${dateHtml}
+    <div class="week-card-row">
+      <div class="week-card-team">
+        ${logoHtml}
+        <div class="week-card-text">
+          <div class="week-card-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</div>
+          ${matchupHtml}
+        </div>
+      </div>
+      <span class="caret" title="${collapsed?'Expand':'Collapse'} headlines">&#9662;</span>
+    </div>
+    <div class="news-list">${articlesHtml}</div>
+  `;
+  card.addEventListener('click', (e)=>{
+    if(e.target.closest('.news-item')) return; // let headline links behave normally
+    toggleNewsCollapsed(team);
+  });
+  return card;
 }
 
 function renderHomepage(board){
@@ -629,50 +721,15 @@ function renderHomepage(board){
     return;
   }
 
-  const wrap = document.createElement('div');
-  wrap.className = 'news-home';
-
-  state.teams.forEach(team=>{
-    const card = document.createElement('div');
-    card.className = 'news-card';
-
-    const news = newsByTeam[team.id];
-    let articlesHtml;
-    if(!news){
-      articlesHtml = '<div class="news-empty">Fetching headlines&hellip;</div>';
-    } else if(!news.articles || !news.articles.length){
-      articlesHtml = '<div class="news-empty">No recent headlines found.</div>';
-    } else {
-      articlesHtml = news.articles.map(a => `
-        <a class="news-item" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
-          <span class="news-item-title">${escapeHtml(a.title)}</span>
-          <span class="news-item-meta">${escapeHtml(a.source||'')}</span>
-        </a>
-      `).join('');
-    }
-
-    const logoOrDot = team.logo
-      ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">`
-      : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-    const collapsed = collapsedNewsTeams.has(team.id);
-    card.className += collapsed ? ' collapsed' : '';
-    card.innerHTML = `
-      <div class="news-card-head">
-        ${logoOrDot}
-        <h3>${rankBadge(team.rank)} ${escapeHtml(team.school)}</h3>
-        <span class="caret" title="${collapsed?'Expand':'Collapse'} headlines">&#9662;</span>
-      </div>
-      <div class="news-list">${articlesHtml}</div>
-    `;
-    card.querySelector('.caret').addEventListener('click', ()=> toggleNewsCollapsed(team.id));
-    card.querySelector('.news-card-head').addEventListener('click', (e)=>{
-      if(e.target.closest('.news-item')) return; // let headline links behave normally
-      toggleNewsCollapsed(team.id);
-    });
-    wrap.appendChild(card);
-  });
-
-  board.appendChild(wrap);
+  const combined = buildHomeTeamList();
+  const section = document.createElement('div');
+  section.className = 'week-section';
+  if(combined.some(x=>x.g)) section.innerHTML = '<h2>Your CFB Week:</h2>';
+  const list = document.createElement('div');
+  list.className = 'week-list';
+  combined.forEach(({team,g})=> list.appendChild(buildHomeTeamCard(team,g)));
+  section.appendChild(list);
+  board.appendChild(section);
 }
 
 function renderBoard(){
@@ -803,7 +860,7 @@ function buildNewTeamPanel(){
   const form = document.createElement('div');
   form.className = 'new-team-form';
   form.innerHTML = `
-    <input type="text" id="newTeamName" list="fbsSchools" placeholder="Team name (e.g. Georgia Tech)" autocomplete="off">
+    <input type="text" id="newTeamName" list="fbsSchools" placeholder="Team name (e.g. Georgia Bulldogs)" autocomplete="off">
     <button class="small-btn" id="createTeamBtn">Add team</button>
     <button class="small-btn ghost" id="cancelTeamBtn">Cancel</button>
   `;
