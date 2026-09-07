@@ -25,6 +25,7 @@
 
   <div class="masthead">
     <div class="masthead-brand">
+      <img src="masthead-logo.png" alt="" class="masthead-logo">
       <h1>Saturday is for CFB</h1>
       <span class="tagline">Game Day, Your Way</span>
     </div>
@@ -777,7 +778,7 @@ function renderNewsForYou(board){
   const items = buildNewsForYou();
   const section = document.createElement('div');
   section.className = 'nfy-section';
-  section.innerHTML = '<h2>News for You:</h2>';
+  section.innerHTML = '<h2><img src="news-icon.png" alt="" class="section-icon">News for You:</h2>';
   const grid = document.createElement('div');
   grid.className = 'nfy-grid';
   if(!items.length){
@@ -814,7 +815,7 @@ function renderHomepage(board){
   if(weekGames.length){
     const section = document.createElement('div');
     section.className = 'week-section';
-    section.innerHTML = '<h2>Your CFB Week:</h2>';
+    section.innerHTML = '<h2><img src="schedule-icon.png" alt="" class="section-icon">Your CFB Week:</h2>';
     const list = document.createElement('div');
     list.className = 'week-list';
     weekGames.forEach(({team,g})=> list.appendChild(buildWeekCard(team,g)));

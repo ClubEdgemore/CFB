@@ -53,7 +53,9 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   margin-bottom:6px;
   flex-wrap:wrap;
 }
-.masthead-brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+.masthead-brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.masthead-logo{height:38px;width:38px;object-fit:contain;flex:none;border-radius:8px;}
+.section-icon{height:22px;width:auto;object-fit:contain;vertical-align:middle;margin-right:8px;}
 .masthead h1{
   font-family:'Barlow Condensed',sans-serif;
   font-weight:800;
