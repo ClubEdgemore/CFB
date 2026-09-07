@@ -1,14 +1,34 @@
+/* Saturday is for CFB — permanent dark theme. All colors are custom
+   properties on :root so this is the only place the palette lives. */
 :root{
-  --stone:#EFEAE1;
-  --card:#FFFFFF;
-  --ink:#1B2333;
-  --ink-soft:#5B6472;
-  --line:#DDD5C8;
-  --win:#2F6F4E;
-  --win-bg:#E4EFE8;
-  --loss:#A93F32;
-  --loss-bg:#F3E5E2;
-  --focus:#2F6F4E;
+  --stone:#0F1116;
+  --card:#1A1D24;
+  --ink:#EDEFF3;
+  --ink-soft:#9AA3B2;
+  --line:#2B2F3A;
+  --win:#5FBE8A;
+  --win-bg:#173627;
+  --loss:#E9776C;
+  --loss-bg:#3A2321;
+  --focus:#5FBE8A;
+  --surface-soft:#20242C;
+  --neutral-badge:#2B2F3A;
+}
+/* Team/opponent logos are transparent PNGs that can disappear against a
+   same-color tab or dark background, so every logo gets a ~3px white
+   "stroke" traced around its actual (transparent-cutout) shape. A plain
+   border/box-shadow only draws a rectangle, so this stacks several
+   zero-blur drop-shadows in 8 directions to approximate a true outline. */
+.tab-logo, .opp-logo, .team-logo{
+  filter:
+    drop-shadow(0.6px 0 0 #fff)
+    drop-shadow(-0.6px 0 0 #fff)
+    drop-shadow(0 0.6px 0 #fff)
+    drop-shadow(0 -0.6px 0 #fff)
+    drop-shadow(0.6px 0.6px 0 #fff)
+    drop-shadow(-0.6px 0.6px 0 #fff)
+    drop-shadow(0.6px -0.6px 0 #fff)
+    drop-shadow(-0.6px -0.6px 0 #fff);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html{-webkit-text-size-adjust:100%;}
@@ -30,9 +50,10 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   gap:16px;
   border-bottom:3px solid var(--ink);
   padding-bottom:14px;
-  margin-bottom:22px;
+  margin-bottom:6px;
   flex-wrap:wrap;
 }
+.masthead-brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
 .masthead h1{
   font-family:'Barlow Condensed',sans-serif;
   font-weight:800;
@@ -40,6 +61,12 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   letter-spacing:0.2px;
   margin:0;
   line-height:1;
+}
+.tagline{
+  font-size:13px;
+  color:var(--ink-soft);
+  font-weight:500;
+  font-style:italic;
 }
 .masthead .season{
   font-size:14px;
@@ -66,7 +93,7 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   border:1px solid var(--line);
   border-radius:6px;
   padding:10px 16px;
-  margin-bottom:16px;
+  margin:16px 0;
   font-size:14px;
 }
 .next-game .ng-label{color:var(--ink-soft);}
@@ -91,10 +118,10 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   align-items:center;
   gap:8px;
   padding:9px 14px 9px 12px;
-  border-radius:3px 3px 0 0;
+  border-radius:6px 6px 0 0;
   border:1px solid var(--line);
   border-bottom:none;
-  background:#F7F3EC;
+  background:var(--card);
   font-family:'Barlow Condensed',sans-serif;
   font-weight:600;
   font-size:17px;
@@ -103,24 +130,35 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   user-select:none;
   min-height:44px;
 }
+.tab.home-tab.active{background:var(--card);color:var(--ink);box-shadow:0 3px 0 var(--card);}
+/* Team tabs get their real team color as an actual background (set inline
+   per-team via JS, with an auto-computed readable text color), not just a
+   small dot — dimmed slightly when inactive, full-strength when active. */
+.tab.team-tab{opacity:0.62;cursor:grab;}
+.tab.team-tab.active{opacity:1;box-shadow:0 3px 0 rgba(255,255,255,0.08);}
+.tab.team-tab:active{cursor:grabbing;}
+.tab.team-tab.dragging{opacity:0.3;}
+.tab.team-tab.drag-over{outline:2px dashed rgba(255,255,255,0.7);outline-offset:-4px;}
 .tab .dot{width:10px;height:10px;border-radius:50%;flex:none;}
-.tab.active{
-  background:var(--card);
-  color:var(--ink);
-  box-shadow:0 3px 0 var(--card);
+.tab .tab-logo{width:20px;height:20px;object-fit:contain;flex:none;}
+.tab .tab-rank{
+  font-size:12px;
+  font-weight:700;
+  opacity:0.85;
 }
 .tab .close{
   font-size:19px;
-  color:var(--ink-soft);
+  color:inherit;
+  opacity:0.7;
   margin-left:2px;
   line-height:1;
   padding:6px 2px 6px 6px;
   margin:-6px -2px -6px 0;
 }
-.tab .close:hover, .tab .close:active{color:var(--loss);}
+.tab .close:hover, .tab .close:active{opacity:1;}
 .tab-add{
   padding:9px 14px;
-  border-radius:3px 3px 0 0;
+  border-radius:6px 6px 0 0;
   border:1px dashed var(--line);
   background:transparent;
   font-family:'Inter',sans-serif;
@@ -153,6 +191,58 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   border-radius:0 6px 6px 6px;
 }
 
+.news-home{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:16px;
+  padding:18px;
+}
+.news-card{
+  background:var(--surface-soft);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:14px 16px;
+}
+.news-card-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:8px;
+}
+.news-card-head{cursor:pointer;user-select:none;}
+.news-card-head img.team-logo{width:22px;height:22px;object-fit:contain;flex:none;}
+.news-card-head h3{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:18px;
+  margin:0;
+  flex:1;
+}
+.news-card-head .caret{
+  color:var(--ink-soft);
+  font-size:13px;
+  line-height:1;
+  padding:4px;
+  margin:-4px;
+  flex:none;
+  transition:transform 0.15s ease;
+}
+.news-card.collapsed .caret{transform:rotate(-90deg);}
+.news-card.collapsed .news-list{display:none;}
+.news-item{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding:8px 0;
+  border-bottom:1px dashed var(--line);
+  text-decoration:none;
+  color:inherit;
+}
+.news-item:last-child{border-bottom:none;}
+.news-item-title{font-size:13.5px;font-weight:600;color:var(--ink);}
+.news-item:hover .news-item-title{color:var(--focus);}
+.news-item-meta{font-size:11.5px;color:var(--ink-soft);}
+.news-empty{font-size:13px;color:var(--ink-soft);padding:6px 0;}
+
 .board-head{
   display:flex;
   align-items:center;
@@ -162,6 +252,8 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   border-bottom:1px solid var(--line);
   flex-wrap:wrap;
 }
+.board-head-team{display:flex;align-items:center;gap:10px;}
+.board-head-team img.team-logo{width:30px;height:30px;object-fit:contain;}
 .record{
   font-family:'Barlow Condensed',sans-serif;
   font-size:22px;
@@ -187,7 +279,9 @@ thead th{
 th.num, td.num{width:34px;text-align:center;}
 tbody tr{border-bottom:1px dashed var(--line);}
 tbody tr:last-child{border-bottom:none;}
-tbody tr.bye{background:#FAF8F3;}
+tbody tr.bye{background:var(--surface-soft);}
+tbody tr.clickable{cursor:pointer;}
+tbody tr.clickable:hover{background:var(--surface-soft);}
 td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
 
 .wk{
@@ -208,6 +302,16 @@ td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
   color:var(--ink-soft);
   width:20px;
 }
+.opp .opp-logo{width:24px;height:24px;object-fit:contain;flex:none;}
+.opp .rank-badge{
+  font-size:11.5px;
+  font-weight:700;
+  color:var(--ink-soft);
+  background:var(--neutral-badge);
+  border-radius:4px;
+  padding:1px 5px;
+  flex:none;
+}
 .opp .name{font-weight:600;}
 .opp .place{display:block;font-size:12px;color:var(--ink-soft);font-weight:400;}
 .tv{color:var(--ink-soft);}
@@ -224,8 +328,8 @@ td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
 }
 .result.W{background:var(--win-bg);color:var(--win);}
 .result.L{background:var(--loss-bg);color:var(--loss);}
-.result.T{background:#EFEAE1;color:var(--ink-soft);}
-.result.pending{background:#EFEAE1;color:var(--ink-soft);font-weight:600;}
+.result.T{background:var(--neutral-badge);color:var(--ink-soft);}
+.result.pending{background:var(--neutral-badge);color:var(--ink-soft);font-weight:600;}
 
 .del-row{
   opacity:0;
@@ -239,7 +343,7 @@ tbody tr:hover .del-row{opacity:1;}
 .panel{
   border-top:1px solid var(--line);
   padding:16px 18px 18px;
-  background:#FBF9F5;
+  background:var(--surface-soft);
   border-radius:0 0 6px 6px;
 }
 .panel h3{
@@ -255,7 +359,7 @@ tbody tr:hover .del-row{opacity:1;}
   border-radius:5px;
   border:1px solid var(--ink);
   background:var(--ink);
-  color:#fff;
+  color:var(--stone);
   cursor:pointer;
 }
 .small-btn:disabled{opacity:0.55;cursor:default;}
@@ -273,6 +377,7 @@ tbody tr:hover .del-row{opacity:1;}
 .new-team-form input[type="text"]{
   padding:8px 10px;font-size:14px;border:1px solid var(--line);border-radius:5px;font-family:'Inter',sans-serif;
   min-width:240px;flex:1;
+  background:var(--card);color:var(--ink);
 }
 .form-msg{font-size:13px;margin-top:4px;min-height:18px;}
 .form-msg.error{color:var(--loss);}
@@ -280,7 +385,7 @@ tbody tr:hover .del-row{opacity:1;}
 
 .empty{padding:40px 18px;text-align:center;color:var(--ink-soft);}
 .footnote{margin-top:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
-.footnote code{background:#F3EFE6;padding:1px 5px;border-radius:3px;}
+.footnote code{background:var(--surface-soft);padding:1px 5px;border-radius:3px;}
 
 @media (max-width:640px){
   .masthead h1{font-size:26px;}
@@ -332,7 +437,9 @@ tbody tr:hover .del-row{opacity:1;}
 /* ---------------- print ("Print all schedules") ----------------
    #printView is built by buildPrintView() with every tracked team's full
    schedule and kept invisible on screen; only @media print reveals it,
-   while everything else on the page is hidden for that print job. */
+   while everything else on the page is hidden for that print job. Printing
+   intentionally stays light/paper-colored regardless of the site's dark
+   theme, since that's what actually prints well. */
 .print-only{display:none;}
 
 @media print{
@@ -344,6 +451,7 @@ tbody tr:hover .del-row{opacity:1;}
     left:0;
     top:0;
     width:100%;
+    color:#000;
   }
   .print-title{
     font-family:'Barlow Condensed',sans-serif;

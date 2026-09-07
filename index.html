@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Football Schedule Tracker</title>
+<title>Saturday is for CFB</title>
+<link rel="icon" href="logo-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -12,9 +13,13 @@
 <div class="wrap">
 
   <div class="masthead">
-    <h1>Football Schedule Tracker</h1>
+    <div class="masthead-brand">
+      <h1>Saturday is for CFB</h1>
+      <span class="tagline">Game Day, Your Way</span>
+    </div>
     <div class="season">
       <span id="seasonLabel"></span>
+      <span class="header-action" id="authBtn" style="display:none;"></span>
       <span class="header-action" id="printAllBtn" title="Print every tracked team's schedule">&#128424;&#65039; Print all</span>
     </div>
   </div>
@@ -106,14 +111,23 @@ const SESSION_ID = getSessionId();
 
 let state = { teams: [], activeTeam: null };
 let fbConfig = null;
-let fbApp = null, fbDb = null, fbFns = null;
+let fbApp = null, fbDb = null, fbFns = null, fbAuth = null;
+let firebaseUser = null; // signed-in Firebase Auth user, or null if signed out
 let teamsUnsub = null;
 const scheduleUnsubs = {}; // teamId -> unsub fn (one live listener per tracked team)
 const schedulesByTeam = {}; // teamId -> {games, updatedAt}
+const newsUnsubs = {}; // teamId -> unsub fn
+const newsByTeam = {}; // teamId -> {school, articles, updatedAt}
 let nextGameTarget = null; // {team, g} — the soonest upcoming game across all tracked teams
 let addingTeam = false;
 let addBusy = false;
 let addMsg = '';
+
+/** Signed in: your Firebase Auth uid, so your list follows you across
+ * devices. Signed out: the per-browser guest id from getSessionId(). */
+function activeNamespaceId(){
+  return (firebaseUser && firebaseUser.uid) || SESSION_ID;
+}
 
 function currentSeasonYear(){
   const now = new Date();
@@ -129,7 +143,7 @@ function loadConfig(){
   const cfg = (typeof FIREBASE_CONFIG !== 'undefined') ? FIREBASE_CONFIG : null;
   fbConfig = (cfg && cfg.apiKey) ? cfg : null;
   const a = lsGet('cfb-active-team');
-  if(a) state.activeTeam = a;
+  state.activeTeam = a || '__home__'; // land on the news homepage by default
 }
 
 function loadScript(src){
@@ -148,36 +162,127 @@ async function connectFirebase(config){
       await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
       await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
       await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
     }
     fbApp = window.firebase.apps && window.firebase.apps.length ? window.firebase.app() : window.firebase.initializeApp(config);
     fbDb = window.firebase.firestore();
     fbFns = window.firebase.functions();
-    subscribeTeams();
+    fbAuth = window.firebase.auth();
+    fbAuth.onAuthStateChanged(onAuthStateChanged);
   }catch(e){
     console.error('Firebase connect failed', e);
-    fbApp = null; fbDb = null; fbFns = null;
+    fbApp = null; fbDb = null; fbFns = null; fbAuth = null;
     render();
   }
 }
 
+/** Fires once on load (with whatever signed-in state Firebase already had
+ * persisted) and again on every sign-in/out. Whichever namespace is now
+ * active (account uid or guest id), tear down the old subscriptions and
+ * start fresh ones pointed at the right data. */
+function onAuthStateChanged(user){
+  firebaseUser = user;
+  updateAuthButton();
+
+  if(teamsUnsub){ teamsUnsub(); teamsUnsub = null; }
+  Object.keys(scheduleUnsubs).forEach(id=>{ scheduleUnsubs[id](); delete scheduleUnsubs[id]; });
+  Object.keys(newsUnsubs).forEach(id=>{ newsUnsubs[id](); delete newsUnsubs[id]; });
+  Object.keys(schedulesByTeam).forEach(id=> delete schedulesByTeam[id]);
+  Object.keys(newsByTeam).forEach(id=> delete newsByTeam[id]);
+  state.teams = [];
+
+  subscribeTeams();
+}
+
+function updateAuthButton(){
+  const el = document.getElementById('authBtn');
+  if(!el) return;
+  el.style.display = 'inline';
+  if(firebaseUser){
+    const name = (firebaseUser.displayName || firebaseUser.email || 'your account').split(' ')[0];
+    el.textContent = `Signed in as ${name} · Sign out`;
+    el.title = 'Sign out (your teams stay saved to this account)';
+    el.onclick = signOutOfApp;
+  } else {
+    el.textContent = 'Sign in with Google to sync across devices';
+    el.title = '';
+    el.onclick = signInWithGoogle;
+  }
+}
+
+async function signInWithGoogle(){
+  if(!fbAuth) return;
+  try{
+    const provider = new window.firebase.auth.GoogleAuthProvider();
+    await fbAuth.signInWithPopup(provider);
+    // Merge anything tracked as a guest (this browser, signed out) into the
+    // account just signed into — safe to call every time; it never
+    // overwrites teams already in the account.
+    try{ await fbFns.httpsCallable('claimSession')({ guestSessionId: SESSION_ID }); }
+    catch(e){ console.error('claimSession failed', e); }
+  }catch(e){
+    console.error('Sign-in failed', e);
+  }
+}
+
+function signOutOfApp(){
+  if(!fbAuth) return;
+  fbAuth.signOut().catch(e=>console.error('Sign-out failed', e));
+}
+
 function sessionRef(){
-  return fbDb.collection('sessions').doc(SESSION_ID);
+  return fbDb.collection('sessions').doc(activeNamespaceId());
+}
+
+/** Sort key for a tracked team: its drag-reordered `order` (small integers,
+ * once any reordering has happened) or, for a team that predates the
+ * reorder feature / hasn't been touched, its original addedAt timestamp —
+ * either way lower sorts first. Deliberately NOT done via Firestore's own
+ * orderBy('order'), since that would silently exclude any team missing the
+ * field instead of falling back like this. */
+function teamSortKey(t){
+  if(typeof t.order === 'number') return t.order;
+  return (t.addedAt && t.addedAt.toMillis) ? t.addedAt.toMillis() : 0;
 }
 
 function subscribeTeams(){
   if(!fbDb) return;
   if(teamsUnsub) teamsUnsub();
-  teamsUnsub = sessionRef().collection('teams').orderBy('addedAt','asc').onSnapshot(qs=>{
-    state.teams = qs.docs.map(d=>({ id:d.id, ...d.data() }));
-    if(!state.activeTeam || !state.teams.find(t=>t.id===state.activeTeam)){
-      state.activeTeam = state.teams[0] ? state.teams[0].id : null;
+  teamsUnsub = sessionRef().collection('teams').onSnapshot(qs=>{
+    state.teams = qs.docs.map(d=>({ id:d.id, ...d.data() })).sort((a,b)=>teamSortKey(a)-teamSortKey(b));
+    if(state.activeTeam !== '__home__' && !state.teams.find(t=>t.id===state.activeTeam)){
+      state.activeTeam = state.teams[0] ? state.teams[0].id : '__home__';
     }
     subscribeAllSchedules();
+    subscribeAllNews();
     recomputeNextGame();
     render();
   }, err=>{
     console.error('teams snapshot error', err);
   });
+}
+
+/** Drag-to-reorder: after a drop, splice state.teams into its new order for
+ * an instant UI update, then persist it so it sticks (and syncs across
+ * devices for a signed-in account). The next onSnapshot fire will carry the
+ * same order back down once it's written. */
+let dragTeamId = null;
+
+function reorderTeamsLocally(draggedId, targetId){
+  const fromIdx = state.teams.findIndex(t=>t.id===draggedId);
+  const toIdx = state.teams.findIndex(t=>t.id===targetId);
+  if(fromIdx===-1 || toIdx===-1 || fromIdx===toIdx) return;
+  const [moved] = state.teams.splice(fromIdx,1);
+  state.teams.splice(toIdx,0,moved);
+  render();
+  persistTeamOrder();
+}
+
+async function persistTeamOrder(){
+  if(!fbFns) return;
+  try{
+    await fbFns.httpsCallable('reorderTeams')({ sessionId: SESSION_ID, order: state.teams.map(t=>t.id) });
+  }catch(e){ console.error('reorderTeams failed', e); }
 }
 
 /** One live listener per tracked team's schedule (not just the active tab) —
@@ -202,6 +307,29 @@ function subscribeAllSchedules(){
       recomputeNextGame();
       render();
     }, err=>console.error('schedule snapshot error', err));
+  });
+}
+
+/** News is NOT session-scoped — newsCache/{teamId} is one shared, public
+ * cache per school, so this reads from the top level, not sessionRef(). */
+function subscribeAllNews(){
+  if(!fbDb) return;
+  const currentIds = new Set(state.teams.map(t=>t.id));
+
+  Object.keys(newsUnsubs).forEach(id=>{
+    if(!currentIds.has(id)){
+      newsUnsubs[id]();
+      delete newsUnsubs[id];
+      delete newsByTeam[id];
+    }
+  });
+
+  state.teams.forEach(team=>{
+    if(newsUnsubs[team.id]) return;
+    newsUnsubs[team.id] = fbDb.collection('newsCache').doc(team.id).onSnapshot(doc=>{
+      newsByTeam[team.id] = doc.exists ? doc.data() : null;
+      render();
+    }, err=>console.error('news snapshot error', err));
   });
 }
 
@@ -242,7 +370,7 @@ function renderNextGameBanner(){
   if(!nextGameTarget){ el.style.display = 'none'; return; }
   const {team, g} = nextGameTarget;
   const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
-  const label = `${escapeHtml(team.school)} ${siteLabel} ${escapeHtml(g.opponent)}`;
+  const label = `${rankBadge(team.rank)} ${escapeHtml(team.school)} ${siteLabel} ${rankBadge(g.opponentRank)} ${escapeHtml(g.opponent)}`;
   el.style.display = 'flex';
   if(g.kickoff && !g.tbd){
     el.innerHTML = `<span class="ng-label">Next up: <strong>${label}</strong></span><span class="ng-countdown">${fmtCountdown(new Date(g.kickoff).getTime() - Date.now())}</span>`;
@@ -265,17 +393,76 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
 
+/** Picks readable text (near-black or near-white) for a given team color
+ * background, so team-colored tabs stay legible regardless of how
+ * light/dark that team's own brand color is. */
+function contrastText(hex){
+  if(!hex) return '#fff';
+  const h = hex.replace('#','');
+  if(h.length!==6) return '#fff';
+  const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+  const lum = (0.299*r + 0.587*g + 0.114*b)/255;
+  return lum > 0.6 ? '#12141a' : '#fff';
+}
+
+function rankBadge(rank){
+  return rank ? `<span class="rank-badge">${escapeHtml(rank)}</span>` : '';
+}
+
 function renderTabs(){
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = '';
+
+  const homeTab = document.createElement('div');
+  homeTab.className = 'tab home-tab' + (state.activeTeam === '__home__' ? ' active' : '');
+  homeTab.innerHTML = `<img src="logo-icon.png" alt="" style="width:20px;height:20px;object-fit:contain;"><span>Home</span>`;
+  homeTab.addEventListener('click', ()=>{
+    state.activeTeam = '__home__'; addingTeam=false; lsSet('cfb-active-team', '__home__');
+    render();
+  });
+  tabs.appendChild(homeTab);
+
   state.teams.forEach(team=>{
     const tab = document.createElement('div');
-    tab.className = 'tab' + (team.id===state.activeTeam ? ' active' : '');
-    tab.innerHTML = `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span><span>${escapeHtml(team.school)}</span><span class="close" data-remove="${team.id}" title="Remove team">&times;</span>`;
+    tab.className = 'tab team-tab' + (team.id===state.activeTeam ? ' active' : '');
+    tab.draggable = true;
+    tab.title = 'Drag to reorder';
+    const bg = team.color || '#1B2333';
+    const fg = contrastText(bg);
+    tab.style.background = bg;
+    tab.style.color = fg;
+    tab.style.borderColor = bg;
+    const logoHtml = team.logo ? `<img class="tab-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${fg};"></span>`;
+    tab.innerHTML = `${logoHtml}${rankBadge(team.rank)}<span>${escapeHtml(team.school)}</span><span class="close" data-remove="${team.id}" title="Remove team">&times;</span>`;
     tab.addEventListener('click', (e)=>{
       if(e.target.dataset.remove){ e.stopPropagation(); removeTeam(e.target.dataset.remove); return; }
       state.activeTeam = team.id; addingTeam=false; lsSet('cfb-active-team', team.id);
       render(); // schedule for every team is already subscribed; no re-fetch needed
+    });
+    // Drag-to-reorder (desktop mouse drag; native HTML5 DnD isn't reliable
+    // on touch, so mobile keeps its existing tap-to-switch behavior).
+    tab.addEventListener('dragstart', (e)=>{
+      dragTeamId = team.id;
+      tab.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', team.id);
+    });
+    tab.addEventListener('dragend', ()=>{
+      tab.classList.remove('dragging');
+      dragTeamId = null;
+      tabs.querySelectorAll('.tab.drag-over').forEach(el=>el.classList.remove('drag-over'));
+    });
+    tab.addEventListener('dragover', (e)=>{
+      if(!dragTeamId || dragTeamId===team.id) return;
+      e.preventDefault();
+      tab.classList.add('drag-over');
+    });
+    tab.addEventListener('dragleave', ()=> tab.classList.remove('drag-over'));
+    tab.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      tab.classList.remove('drag-over');
+      if(!dragTeamId || dragTeamId===team.id) return;
+      reorderTeamsLocally(dragTeamId, team.id);
     });
     tabs.appendChild(tab);
   });
@@ -326,7 +513,7 @@ function slugifyClient(name){
 }
 
 function buildICS(team, games){
-  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Football Schedule Tracker//EN','CALSCALE:GREGORIAN'];
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Saturday is for CFB//EN','CALSCALE:GREGORIAN'];
   const stamp = toICSStamp(new Date());
   (games||[]).filter(g=>!g.bye).forEach(g=>{
     lines.push('BEGIN:VEVENT');
@@ -378,7 +565,7 @@ function buildPrintView(){
   if(!el) return;
   if(!state.teams.length){ el.innerHTML = ''; return; }
 
-  let html = `<h1 class="print-title">Football Schedule Tracker — ${currentSeasonYear()} season</h1>`;
+  let html = `<h1 class="print-title">Saturday is for CFB — ${currentSeasonYear()} season</h1>`;
   state.teams.forEach(team=>{
     const sched = schedulesByTeam[team.id];
     const games = sched ? sched.games : [];
@@ -407,6 +594,76 @@ function buildPrintView(){
   el.innerHTML = html;
 }
 
+/* ---------------- homepage: news for every tracked team ---------------- */
+
+/** Which teams' news cards are collapsed — per-browser, remembered across
+ * reloads via localStorage (a Set doesn't survive JSON round-trips, so it's
+ * stored as a plain array). */
+function loadCollapsedNews(){
+  try{ return new Set(JSON.parse(lsGet('cfb-collapsed-news') || '[]')); }catch(e){ return new Set(); }
+}
+function saveCollapsedNews(){ lsSet('cfb-collapsed-news', JSON.stringify([...collapsedNewsTeams])); }
+let collapsedNewsTeams = loadCollapsedNews();
+
+function toggleNewsCollapsed(teamId){
+  if(collapsedNewsTeams.has(teamId)) collapsedNewsTeams.delete(teamId);
+  else collapsedNewsTeams.add(teamId);
+  saveCollapsedNews();
+  render();
+}
+
+function renderHomepage(board){
+  if(!state.teams.length){
+    board.innerHTML = '<div class="empty">Add a team to see its news here.</div>';
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'news-home';
+
+  state.teams.forEach(team=>{
+    const card = document.createElement('div');
+    card.className = 'news-card';
+
+    const news = newsByTeam[team.id];
+    let articlesHtml;
+    if(!news){
+      articlesHtml = '<div class="news-empty">Fetching headlines&hellip;</div>';
+    } else if(!news.articles || !news.articles.length){
+      articlesHtml = '<div class="news-empty">No recent headlines found.</div>';
+    } else {
+      articlesHtml = news.articles.map(a => `
+        <a class="news-item" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
+          <span class="news-item-title">${escapeHtml(a.title)}</span>
+          <span class="news-item-meta">${escapeHtml(a.source||'')}</span>
+        </a>
+      `).join('');
+    }
+
+    const logoOrDot = team.logo
+      ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">`
+      : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
+    const collapsed = collapsedNewsTeams.has(team.id);
+    card.className += collapsed ? ' collapsed' : '';
+    card.innerHTML = `
+      <div class="news-card-head">
+        ${logoOrDot}
+        <h3>${rankBadge(team.rank)} ${escapeHtml(team.school)}</h3>
+        <span class="caret" title="${collapsed?'Expand':'Collapse'} headlines">&#9662;</span>
+      </div>
+      <div class="news-list">${articlesHtml}</div>
+    `;
+    card.querySelector('.caret').addEventListener('click', ()=> toggleNewsCollapsed(team.id));
+    card.querySelector('.news-card-head').addEventListener('click', (e)=>{
+      if(e.target.closest('.news-item')) return; // let headline links behave normally
+      toggleNewsCollapsed(team.id);
+    });
+    wrap.appendChild(card);
+  });
+
+  board.appendChild(wrap);
+}
+
 function renderBoard(){
   const board = document.getElementById('board');
   board.innerHTML = '';
@@ -418,6 +675,11 @@ function renderBoard(){
 
   if(addingTeam){
     board.appendChild(buildNewTeamPanel());
+    return;
+  }
+
+  if(state.activeTeam === '__home__'){
+    renderHomepage(board);
     return;
   }
 
@@ -434,7 +696,8 @@ function renderBoard(){
   head.className = 'board-head';
   if(games){
     const rec = computeRecord(games);
-    head.innerHTML = `<div class="record"><span class="win">${rec.w}</span>-<span class="loss">${rec.l}</span><span class="record-label">${currentSeasonYear()} record</span></div>`;
+    const teamLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : '';
+    head.innerHTML = `<div class="board-head-team">${teamLogoHtml}<div class="record">${rankBadge(team.rank)} <span class="win">${rec.w}</span>-<span class="loss">${rec.l}</span><span class="record-label">${currentSeasonYear()} record</span></div></div>`;
 
     const actions = document.createElement('div');
     actions.className = 'board-head-actions';
@@ -484,18 +747,33 @@ function renderBoard(){
     }
     const dt = g.date ? fmtDate(g.date) : {dow:'',md:'TBA'};
     const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
+    const oppLogoHtml = g.opponentLogo ? `<img class="opp-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
+    tr.className = 'clickable';
+    tr.title = 'Search this matchup on Google';
     tr.innerHTML = `
       <td class="wk">${escapeHtml(g.week)}</td>
       <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
-      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div class="opp-info"><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
+      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span>${oppLogoHtml}${rankBadge(g.opponentRank)}<div class="opp-info"><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
       <td data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
       <td class="tv" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
       <td data-label="Result">${resultBadge(g)}</td>
     `;
+    tr.addEventListener('click', ()=> window.open(gameSearchUrl(team, g), '_blank', 'noopener'));
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
   board.appendChild(table);
+}
+
+/** Each schedule row is clickable — opens Google's own "<team> schedule"
+ * results, which show a schedule/score carousel Google keeps accurate per
+ * game (including a live indicator on game day). A query naming both teams
+ * (e.g. "Auburn vs Georgia football score") is ambiguous for annual
+ * rivalries — Google can't tell which year's meeting is meant and often
+ * surfaces an old score — so this points at the team's own schedule
+ * instead, where the exact game is easy to find and always current. */
+function gameSearchUrl(team, g){
+  return 'https://www.google.com/search?q=' + encodeURIComponent(`${team.school} schedule`);
 }
 
 function resultBadge(g){
