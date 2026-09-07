@@ -343,8 +343,19 @@ td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
   color:var(--ink-soft);
   width:22px;
 }
+/* Groups the name/rank/place block with the logo so they stay butted right
+   up against each other and move as one unit — `.opp-main` (not the logo
+   itself) is what gets pushed away from the site-tag, so there's a single
+   gap on the left, never one wedged between the name and the logo. Also
+   what keeps a no-logo opponent right-aligned instead of hugging the
+   site-tag with empty space after it. */
+.opp-main{display:flex;align-items:center;gap:10px;margin-left:auto;}
 .opp .opp-logo{width:24px;height:24px;object-fit:contain;flex:none;}
-.opp .rank-badge{
+/* Global — every ranking anywhere in the app (tabs, next-game banner, week
+   cards, schedule rows) uses this same pill, always sitting just to the
+   right of the team/opponent name it belongs to. Previously scoped to
+   `.opp` only, so it silently rendered unstyled everywhere else. */
+.rank-badge{
   font-size:11.5px;
   font-weight:700;
   color:var(--ink-soft);
@@ -353,6 +364,11 @@ td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
   padding:1px 5px;
   flex:none;
 }
+/* Right-aligned unconditionally (not just on mobile) so a short name over a
+   longer stadium line (or vice versa) still ends flush against the logo
+   instead of ragged-left inside opp-info's own content-sized box — one rule
+   for every screen size instead of a desktop/mobile split to keep in sync. */
+.opp-info{text-align:right;}
 .opp .name{font-weight:600;}
 .opp .place{display:block;font-size:12px;color:var(--ink-soft);font-weight:400;}
 .tv{color:var(--ink-soft);}
@@ -501,9 +517,8 @@ tbody tr:hover .del-row{opacity:1;}
     color:var(--ink-soft);
     flex:none;
   }
-  td .opp{width:100%;justify-content:space-between;}
+  td .opp{width:100%;}
   td.opp-cell{order:-1;padding-top:2px;}
-  .opp-info{text-align:right;}
 }
 
 /* ---------------- print ("Print all schedules") ----------------

@@ -425,7 +425,7 @@ function renderNextGameBanner(){
   if(!nextGameTarget){ el.style.display = 'none'; return; }
   const {team, g} = nextGameTarget;
   const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
-  const label = `${rankBadge(team.rank)} ${escapeHtml(team.school)} ${siteLabel} ${rankBadge(g.opponentRank)} ${escapeHtml(g.opponent)}`;
+  const label = `${escapeHtml(team.school)} ${rankBadge(team.rank)} ${siteLabel} ${escapeHtml(g.opponent)} ${rankBadge(g.opponentRank)}`;
   el.style.display = 'flex';
   if(g.kickoff && !g.tbd){
     el.innerHTML = `<span class="ng-label">Next up: <strong>${label}</strong></span><span class="ng-countdown">${fmtCountdown(new Date(g.kickoff).getTime() - Date.now())}</span>`;
@@ -488,7 +488,7 @@ function renderTabs(){
     tab.style.color = fg;
     tab.style.borderColor = bg;
     const logoHtml = team.logo ? `<img class="tab-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${fg};"></span>`;
-    tab.innerHTML = `${logoHtml}${rankBadge(team.rank)}<span>${escapeHtml(team.school)}</span><span class="close" data-remove="${team.id}" title="Remove team">&times;</span>`;
+    tab.innerHTML = `${logoHtml}<span>${escapeHtml(team.school)}</span>${rankBadge(team.rank)}<span class="close" data-remove="${team.id}" title="Remove team">&times;</span>`;
     tab.addEventListener('click', (e)=>{
       if(e.target.dataset.remove){ e.stopPropagation(); removeTeam(e.target.dataset.remove); return; }
       state.activeTeam = team.id; addingTeam=false; lsSet('cfb-active-team', team.id);
@@ -785,7 +785,7 @@ function buildLiveScoreBlock(team, g, live){
     <div class="week-card-score-row">
       <div class="score-team">
         ${myBall ? ball : ''}${myLogoHtml}
-        <span class="score-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</span>
+        <span class="score-name">${escapeHtml(team.school)} ${rankBadge(team.rank)}</span>
       </div>
       <div class="score-nums">
         <span class="score-num">${myPts!==null && myPts!==undefined ? myPts : 0}</span>
@@ -857,7 +857,7 @@ function buildWeekCard(team, g){
         <div class="week-card-team">
           ${logoHtml}
           <div class="week-card-text">
-            <div class="week-card-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</div>
+            <div class="week-card-name">${escapeHtml(team.school)} ${rankBadge(team.rank)}</div>
             <div class="week-card-matchup">${g.site==='A'?'@':'vs'} ${escapeHtml(g.opponent)}</div>
           </div>
         </div>
@@ -1033,7 +1033,7 @@ function renderBoard(){
     tr.innerHTML = `
       <td class="wk">${escapeHtml(g.week)}</td>
       <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
-      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span>${oppLogoHtml}${rankBadge(g.opponentRank)}<div class="opp-info"><span class="name">${escapeHtml(g.opponent)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div></div></td>
+      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div class="opp-main"><div class="opp-info"><span class="name">${escapeHtml(g.opponent)} ${rankBadge(g.opponentRank)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div>${oppLogoHtml}</div></div></td>
       <td data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
       <td class="tv" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
       <td data-label="Result">${resultBadge(g)}</td>
