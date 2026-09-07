@@ -228,6 +228,30 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .week-card-insights .win-prob{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--win);}
 .week-card-insights .insight-line{font-size:12.5px;color:var(--ink-soft);}
 
+/* Live / just-finished game cards */
+.week-card.live{border-color:var(--win);}
+.week-card-live-badge{display:inline-flex;align-items:center;gap:6px;color:var(--win);font-weight:700;font-size:12.5px;letter-spacing:.04em;}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--win);flex:none;animation:live-pulse 1.4s ease-in-out infinite;}
+@keyframes live-pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+.week-card-final-badge{color:var(--ink-soft);font-weight:700;font-size:12.5px;letter-spacing:.04em;}
+
+.week-card-score-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.score-team{display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
+.score-team img.team-logo{width:26px;height:26px;object-fit:contain;flex:none;}
+.score-team-opp{flex-direction:row-reverse;text-align:right;justify-content:flex-start;}
+.score-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.score-nums{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;color:var(--ink);flex:none;}
+.score-sep{opacity:.4;font-weight:400;}
+.ball-icon{font-size:12px;flex:none;line-height:1;}
+
+.quarter-table{width:100%;border-collapse:collapse;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;}
+.quarter-table th,.quarter-table td{padding:3px 6px;text-align:center;color:var(--ink-soft);}
+.quarter-table th{font-weight:600;}
+.quarter-table td{color:var(--ink);}
+.quarter-table .q-team{text-align:left;font-weight:600;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;}
+.quarter-table .q-total{font-weight:800;color:var(--ink);}
+.quarter-table tr+tr td,.quarter-table tr+tr th{border-top:1px solid var(--line);}
+
 .nfy-section h2{
   font-family:'Barlow Condensed',sans-serif;
   font-size:21px;

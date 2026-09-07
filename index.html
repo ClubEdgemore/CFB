@@ -146,6 +146,8 @@ const newsUnsubs = {}; // teamId -> unsub fn
 const newsByTeam = {}; // teamId -> {school, articles, updatedAt}
 let nationalNews = null; // {label, articles, updatedAt} — shared, not team-scoped
 let nationalNewsUnsub = null;
+let liveScores = {}; // gameId -> {status, period, clock, possession, homePoints, awayPoints, homeLineScores, awayLineScores}
+let liveScoresUnsub = null;
 let nextGameTarget = null; // {team, g} — the soonest upcoming game across all tracked teams
 let addingTeam = false;
 let addBusy = false;
@@ -198,6 +200,7 @@ async function connectFirebase(config){
     fbAuth = window.firebase.auth();
     fbAuth.onAuthStateChanged(onAuthStateChanged);
     subscribeNationalNews();
+    subscribeLiveScores();
   }catch(e){
     console.error('Firebase connect failed', e);
     fbApp = null; fbDb = null; fbFns = null; fbAuth = null;
@@ -348,6 +351,18 @@ function subscribeNationalNews(){
     nationalNews = doc.exists ? doc.data() : null;
     render();
   }, err=>console.error('national news snapshot error', err));
+}
+
+/** The shared live-scoreboard doc (live/scoreboard) — one subscription for
+ * the whole app's lifetime, just like national news, since it isn't scoped
+ * to any tracked team either: one /scoreboard poll on the backend covers
+ * every FBS game, and every browser just reads the same fanned-out doc. */
+function subscribeLiveScores(){
+  if(!fbDb || liveScoresUnsub) return;
+  liveScoresUnsub = fbDb.collection('live').doc('scoreboard').onSnapshot(doc=>{
+    liveScores = (doc.exists && doc.data().games) || {};
+    render();
+  }, err=>console.error('live scores snapshot error', err));
 }
 
 /** News is NOT session-scoped — newsCache/{teamId} is one shared, public
@@ -681,7 +696,17 @@ function buildWeekGames(){
   const now = Date.now();
   return state.teams
     .map(team=>({team, g: nextGameForTeam(team)}))
-    .filter(x=> x.g && gameTimeMs(x.g) >= now && gameTimeMs(x.g) <= now + ONE_WEEK)
+    .filter(x=>{
+      if(!x.g) return false;
+      const t = gameTimeMs(x.g);
+      if(t > now + ONE_WEEK) return false; // too far out to preview yet
+      if(t >= now) return true; // hasn't kicked off yet — always show
+      // Kickoff already passed: only keep showing it if it's live (or just
+      // finished) per the live-scoreboard doc — otherwise nightlyRefresh
+      // just hasn't caught up to mark it final/completed yet, and it'll
+      // roll off on its own once it does.
+      return !!liveScores[x.g.id];
+    })
     .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
 }
 
@@ -731,35 +756,119 @@ function computeTeamInsights(team){
   return line;
 }
 
-/** One homepage game-preview card: date/matchup at a glance, win chance, and
- * the free-tier recent-form insight — purely informational, no news here
- * anymore (see "News for You" below). */
-function buildWeekCard(team, g){
-  const card = document.createElement('div');
-  card.className = 'week-card';
+/** True once CFBD's own possession field resolves to "this team", using the
+ * isHome flag captured server-side (works for neutral-site games too, since
+ * that's independent of the neutral-site flag). */
+function hasBall(g, live, wantHome){
+  if(!live || !live.possession) return false;
+  return live.possession === (wantHome ? 'home' : 'away');
+}
 
-  const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-  const wpPct = winProbPct(g);
-  const insightsText = computeTeamInsights(team);
-  const insightsHtml = (wpPct!==null || insightsText) ? `
-    <div class="week-card-insights">
-      ${wpPct!==null ? `<span class="win-prob" style="color:${winProbColor(wpPct)}">${wpPct}% win chance</span>` : ''}
-      ${insightsText ? `<span class="insight-line">${escapeHtml(insightsText)}</span>` : ''}
-    </div>
-  ` : '';
+/** Google-style live/final score row + quarter-by-quarter table, swapped in
+ * for the win%/insights block once a game is underway (or has just ended,
+ * before nightlyRefresh has caught up to mark it final in the schedule
+ * itself). Oriented with `g.isHome` so it's always correct regardless of
+ * which side CFBD calls "home" for a neutral-site game. */
+function buildLiveScoreBlock(team, g, live){
+  const myPts = g.isHome ? live.homePoints : live.awayPoints;
+  const oppPts = g.isHome ? live.awayPoints : live.homePoints;
+  const myLines = (g.isHome ? live.homeLineScores : live.awayLineScores) || [];
+  const oppLines = (g.isHome ? live.awayLineScores : live.homeLineScores) || [];
+  const myBall = hasBall(g, live, g.isHome);
+  const oppBall = hasBall(g, live, !g.isHome);
 
-  card.innerHTML = `
-    <div class="week-card-date">${escapeHtml(fmtWeekCardDate(g))}</div>
-    <div class="week-card-row">
-      <div class="week-card-team">
-        ${logoHtml}
-        <div class="week-card-text">
-          <div class="week-card-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</div>
-          <div class="week-card-matchup">${g.site==='A'?'@':'vs'} ${escapeHtml(g.opponent)}</div>
-        </div>
+  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : '';
+  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
+  const ball = '<span class="ball-icon" title="Has the ball">🏈</span>';
+
+  const scoreRow = `
+    <div class="week-card-score-row">
+      <div class="score-team">
+        ${myBall ? ball : ''}${myLogoHtml}
+        <span class="score-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</span>
+      </div>
+      <div class="score-nums">
+        <span class="score-num">${myPts!==null && myPts!==undefined ? myPts : 0}</span>
+        <span class="score-sep">-</span>
+        <span class="score-num">${oppPts!==null && oppPts!==undefined ? oppPts : 0}</span>
+      </div>
+      <div class="score-team score-team-opp">
+        <span class="score-name">${escapeHtml(g.opponent)}</span>
+        ${oppLogoHtml}${oppBall ? ball : ''}
       </div>
     </div>
-    ${insightsHtml}
+  `;
+
+  const cols = Math.max(myLines.length, oppLines.length, 4);
+  let head = '<tr><th></th>';
+  for(let i=0;i<cols;i++) head += `<th>${i+1}</th>`;
+  head += '<th>T</th></tr>';
+  const rowHtml = (name, lines, total) => {
+    let cells = `<td class="q-team">${escapeHtml(name)}</td>`;
+    for(let i=0;i<cols;i++) cells += `<td>${lines[i]!==undefined ? lines[i] : '&ndash;'}</td>`;
+    cells += `<td class="q-total">${total!==null && total!==undefined ? total : '&ndash;'}</td>`;
+    return `<tr>${cells}</tr>`;
+  };
+  const table = `
+    <table class="quarter-table">
+      ${head}
+      ${rowHtml(team.school, myLines, myPts)}
+      ${rowHtml(g.opponent, oppLines, oppPts)}
+    </table>
+  `;
+  return scoreRow + table;
+}
+
+/** One homepage game-preview card. Before kickoff: date/matchup at a glance,
+ * win chance, and the free-tier recent-form insight. Once live (or just
+ * finished): a LIVE/Final badge up top and a Google-style score + quarter
+ * breakdown instead. No news here either way (see "News for You" below). */
+function buildWeekCard(team, g){
+  const card = document.createElement('div');
+  const live = liveScores[g.id];
+  const isLive = !!live && live.status === 'in_progress';
+  const isJustFinished = !!live && live.status === 'completed';
+  card.className = 'week-card' + (isLive ? ' live' : '');
+
+  let topRight;
+  if(isLive){
+    topRight = '<span class="week-card-live-badge"><span class="live-dot"></span>LIVE</span>';
+  } else if(isJustFinished){
+    topRight = '<span class="week-card-final-badge">Final</span>';
+  } else {
+    topRight = escapeHtml(fmtWeekCardDate(g));
+  }
+
+  let lowerHtml;
+  if(live){
+    lowerHtml = buildLiveScoreBlock(team, g, live);
+  } else {
+    const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
+    const wpPct = winProbPct(g);
+    const insightsText = computeTeamInsights(team);
+    const insightsHtml = (wpPct!==null || insightsText) ? `
+      <div class="week-card-insights">
+        ${wpPct!==null ? `<span class="win-prob" style="color:${winProbColor(wpPct)}">${wpPct}% win chance</span>` : ''}
+        ${insightsText ? `<span class="insight-line">${escapeHtml(insightsText)}</span>` : ''}
+      </div>
+    ` : '';
+    lowerHtml = `
+      <div class="week-card-row">
+        <div class="week-card-team">
+          ${logoHtml}
+          <div class="week-card-text">
+            <div class="week-card-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</div>
+            <div class="week-card-matchup">${g.site==='A'?'@':'vs'} ${escapeHtml(g.opponent)}</div>
+          </div>
+        </div>
+      </div>
+      ${insightsHtml}
+    `;
+  }
+
+  card.innerHTML = `
+    <div class="week-card-date">${topRight}</div>
+    ${lowerHtml}
   `;
   return card;
 }
