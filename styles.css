@@ -191,43 +191,44 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   border-radius:0 6px 6px 6px;
 }
 
-.news-home{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
-  gap:16px;
-  padding:18px;
+.week-section h2{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:21px;
+  font-weight:700;
+  margin:0;
+  padding:18px 18px 12px;
+  color:var(--ink);
 }
-.news-card{
+.week-list{display:flex;flex-direction:column;gap:10px;padding:18px;}
+.week-section h2 + .week-list{padding-top:0;}
+.week-card{
   background:var(--surface-soft);
   border:1px solid var(--line);
   border-radius:8px;
   padding:14px 16px;
+  cursor:pointer;
 }
-.news-card-head{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin-bottom:8px;
-}
-.news-card-head{cursor:pointer;user-select:none;}
-.news-card-head img.team-logo{width:22px;height:22px;object-fit:contain;flex:none;}
-.news-card-head h3{
-  font-family:'Barlow Condensed',sans-serif;
-  font-size:18px;
-  margin:0;
-  flex:1;
-}
-.news-card-head .caret{
-  color:var(--ink-soft);
-  font-size:13px;
+.week-card:hover{border-color:var(--ink-soft);}
+.week-card-date{font-size:13px;color:var(--ink-soft);margin-bottom:8px;}
+.week-card-row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.week-card-team{display:flex;align-items:center;gap:12px;min-width:0;flex:1;}
+.week-card-team img.team-logo{width:34px;height:34px;object-fit:contain;flex:none;}
+.week-card-team .dot{width:16px;height:16px;border-radius:50%;flex:none;}
+.week-card-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:19px;color:var(--ink);}
+.week-card-matchup{font-size:14.5px;color:var(--ink-soft);}
+.week-card .caret{
+  color:var(--ink);
+  font-size:22px;
   line-height:1;
   padding:4px;
   margin:-4px;
   flex:none;
+  cursor:pointer;
   transition:transform 0.15s ease;
 }
-.news-card.collapsed .caret{transform:rotate(-90deg);}
-.news-card.collapsed .news-list{display:none;}
+.week-card.collapsed .caret{transform:rotate(-90deg);}
+.week-card.collapsed .news-list{display:none;}
+.week-card .news-list{margin-top:12px;padding-top:4px;border-top:1px solid var(--line);}
 .news-item{
   display:flex;
   flex-direction:column;
@@ -298,9 +299,9 @@ td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
 .opp .site-tag{
   font-family:'Barlow Condensed',sans-serif;
   font-weight:700;
-  font-size:13px;
+  font-size:16px;
   color:var(--ink-soft);
-  width:20px;
+  width:22px;
 }
 .opp .opp-logo{width:24px;height:24px;object-fit:contain;flex:none;}
 .opp .rank-badge{
