@@ -1,18 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><!-- Google tag (gtag.js) -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-Z0QBGJJ7GZ"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-
   gtag('config', 'G-Z0QBGJJ7GZ');
 </script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Saturday is for CFB</title>
 <link rel="icon" href="logo-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0F1116">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -40,8 +43,7 @@
   <div class="footnote">
     Schedules, times, TV/streaming info, and scores are fetched automatically from the
     <a href="https://collegefootballdata.com" target="_blank" rel="noopener">College Football Data</a> API the moment you add a team,
-    then refreshed every night by a Cloud Function. Nothing here is editable by hand &mdash; if something looks off, it'll usually
-    correct itself on the next nightly refresh.
+    then refreshed every night by a Cloud Function. Add teams to your home page for news &amp; updates and see the full schedule on your tabs.
   </div>
 </div>
 
@@ -49,6 +51,21 @@
      only when printing (see the @media print rules in styles.css) so that
      "Print all" prints every tracked team, not just whichever tab is open. -->
 <div class="print-only" id="printView"></div>
+
+<!-- "Add to Home Screen" popup — opened from the button on the homepage
+     (see renderHomepage). Its body text and Install button are filled in by
+     openPwaModal() depending on what the visitor's browser can actually do. -->
+<div class="pwa-modal-backdrop" id="pwaModalBackdrop" style="display:none;">
+  <div class="pwa-modal">
+    <img src="icon-192.png" alt="" class="pwa-modal-icon">
+    <h3>Add SaturdayIsForCFB to your Home Screen</h3>
+    <p id="pwaModalBody">Install this app for quick access, right from your home screen.</p>
+    <div class="pwa-modal-actions">
+      <button class="small-btn" id="pwaInstallBtn">Add to Home Screen</button>
+      <button class="small-btn ghost" id="pwaCancelBtn">Not now</button>
+    </div>
+  </div>
+</div>
 
 <!-- FBS school names, for the "Add team" autocomplete only. The Cloud Function
      looks up the real record server-side, so this list is just a typing aid
@@ -723,9 +740,18 @@ function buildHomeTeamCard(team, g){
   return card;
 }
 
+function appendInstallRow(board){
+  const row = document.createElement('div');
+  row.className = 'pwa-install-row';
+  row.innerHTML = `<button class="small-btn ghost" id="pwaOpenBtn">&#128241; Add to Home Screen</button>`;
+  board.appendChild(row);
+  row.querySelector('#pwaOpenBtn').addEventListener('click', openPwaModal);
+}
+
 function renderHomepage(board){
   if(!state.teams.length){
     board.innerHTML = '<div class="empty">Add a team to see its news here.</div>';
+    appendInstallRow(board);
     return;
   }
 
@@ -738,6 +764,7 @@ function renderHomepage(board){
   combined.forEach(({team,g})=> list.appendChild(buildHomeTeamCard(team,g)));
   section.appendChild(list);
   board.appendChild(section);
+  appendInstallRow(board);
 }
 
 function renderBoard(){
@@ -868,15 +895,17 @@ function buildNewTeamPanel(){
   const form = document.createElement('div');
   form.className = 'new-team-form';
   form.innerHTML = `
-    <input type="text" id="newTeamName" list="fbsSchools" placeholder="Team name (e.g. Georgia Bulldogs)" autocomplete="off">
+    <input type="text" id="newTeamName" list="fbsSchools" placeholder="Start typing a team &amp; select" autocomplete="off">
     <button class="small-btn" id="createTeamBtn">Add team</button>
     <button class="small-btn ghost" id="cancelTeamBtn">Cancel</button>
   `;
   panel.appendChild(form);
-  const msg = document.createElement('div');
-  msg.className = 'form-msg' + (addMsg.error ? ' error' : ' info');
-  msg.textContent = addMsg.text || "Type any FBS school name — its full schedule, TV info, and scores load automatically.";
-  panel.appendChild(msg);
+  if(addMsg.text){
+    const msg = document.createElement('div');
+    msg.className = 'form-msg' + (addMsg.error ? ' error' : ' info');
+    msg.textContent = addMsg.text;
+    panel.appendChild(msg);
+  }
 
   panel.querySelector('#cancelTeamBtn').addEventListener('click', ()=>{ addingTeam=false; addMsg=''; render(); });
 
@@ -921,6 +950,61 @@ document.getElementById('printAllBtn').addEventListener('click', ()=>{
   buildPrintView(); // make sure it reflects the latest data before printing
   window.print();
 });
+
+/* ---------------- add to home screen (PWA install) ----------------
+   Chrome/Android fire beforeinstallprompt and let us trigger the real
+   native install flow; Safari on iOS never fires it (no programmatic
+   install there), so the popup falls back to manual "tap Share, then Add
+   to Home Screen" instructions; any other browser gets a generic pointer
+   to its own menu. */
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function openPwaModal(){
+  const backdrop = document.getElementById('pwaModalBackdrop');
+  const body = document.getElementById('pwaModalBody');
+  const installBtn = document.getElementById('pwaInstallBtn');
+  if(deferredInstallPrompt){
+    body.textContent = 'Install this app for quick access, right from your home screen.';
+    installBtn.style.display = '';
+  } else if(isIOS()){
+    body.innerHTML = 'On iPhone/iPad: tap the <strong>Share</strong> icon in Safari, then choose <strong>Add to Home Screen</strong>.';
+    installBtn.style.display = 'none';
+  } else {
+    body.innerHTML = 'Look for <strong>Install app</strong> (or a small install icon) in your browser’s address bar or menu.';
+    installBtn.style.display = 'none';
+  }
+  backdrop.style.display = 'flex';
+}
+
+function closePwaModal(){
+  document.getElementById('pwaModalBackdrop').style.display = 'none';
+}
+
+document.getElementById('pwaCancelBtn').addEventListener('click', closePwaModal);
+document.getElementById('pwaModalBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id === 'pwaModalBackdrop') closePwaModal();
+});
+document.getElementById('pwaInstallBtn').addEventListener('click', async ()=>{
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  closePwaModal();
+});
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(e=>console.error('Service worker registration failed', e));
+  });
+}
 
 /* ---------------- go ---------------- */
 loadConfig();

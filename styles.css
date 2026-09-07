@@ -384,6 +384,37 @@ tbody tr:hover .del-row{opacity:1;}
 .form-msg.error{color:var(--loss);}
 .form-msg.info{color:var(--ink-soft);}
 
+.pwa-install-row{padding:4px 18px 18px;}
+
+.pwa-modal-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.6);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  z-index:1000;
+}
+.pwa-modal{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:24px;
+  max-width:360px;
+  width:100%;
+  text-align:center;
+}
+.pwa-modal-icon{width:64px;height:64px;border-radius:14px;margin-bottom:14px;}
+.pwa-modal h3{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:20px;
+  margin:0 0 10px;
+  color:var(--ink);
+}
+.pwa-modal p{font-size:14px;color:var(--ink-soft);margin:0 0 18px;line-height:1.5;}
+.pwa-modal-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+
 .empty{padding:40px 18px;text-align:center;color:var(--ink-soft);}
 .footnote{margin-top:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
 .footnote code{background:var(--surface-soft);padding:1px 5px;border-radius:3px;}
