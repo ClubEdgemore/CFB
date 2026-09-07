@@ -143,6 +143,8 @@ const scheduleUnsubs = {}; // teamId -> unsub fn (one live listener per tracked 
 const schedulesByTeam = {}; // teamId -> {games, updatedAt}
 const newsUnsubs = {}; // teamId -> unsub fn
 const newsByTeam = {}; // teamId -> {school, articles, updatedAt}
+let nationalNews = null; // {label, articles, updatedAt} — shared, not team-scoped
+let nationalNewsUnsub = null;
 let nextGameTarget = null; // {team, g} — the soonest upcoming game across all tracked teams
 let addingTeam = false;
 let addBusy = false;
@@ -194,6 +196,7 @@ async function connectFirebase(config){
     fbFns = window.firebase.functions();
     fbAuth = window.firebase.auth();
     fbAuth.onAuthStateChanged(onAuthStateChanged);
+    subscribeNationalNews();
   }catch(e){
     console.error('Firebase connect failed', e);
     fbApp = null; fbDb = null; fbFns = null; fbAuth = null;
@@ -333,6 +336,17 @@ function subscribeAllSchedules(){
       render();
     }, err=>console.error('schedule snapshot error', err));
   });
+}
+
+/** The shared national news doc (newsCache/_national) — one subscription
+ * for the whole app's lifetime, not per-team like subscribeAllNews, since
+ * it isn't scoped to any tracked team. */
+function subscribeNationalNews(){
+  if(!fbDb || nationalNewsUnsub) return;
+  nationalNewsUnsub = fbDb.collection('newsCache').doc('_national').onSnapshot(doc=>{
+    nationalNews = doc.exists ? doc.data() : null;
+    render();
+  }, err=>console.error('national news snapshot error', err));
 }
 
 /** News is NOT session-scoped — newsCache/{teamId} is one shared, public
@@ -619,25 +633,7 @@ function buildPrintView(){
   el.innerHTML = html;
 }
 
-/* ---------------- homepage: news for every tracked team ---------------- */
-
-/** News cards start collapsed by default (team.newsCollapsed is undefined
- * until toggled at least once) and are remembered from then on — stored on
- * the team doc itself via setNewsCollapsed, so a signed-in user's choice
- * follows them across devices, same as everything else about that team. */
-function isNewsCollapsed(team){
-  return team.newsCollapsed !== false;
-}
-
-async function toggleNewsCollapsed(team){
-  const next = !isNewsCollapsed(team);
-  team.newsCollapsed = next; // optimistic local update so the UI responds instantly
-  render();
-  if(!fbFns) return;
-  try{
-    await fbFns.httpsCallable('setNewsCollapsed')({ sessionId: SESSION_ID, teamId: team.id, collapsed: next });
-  }catch(e){ console.error('setNewsCollapsed failed', e); }
-}
+/* ---------------- homepage: this week's games + News for You ---------------- */
 
 /** A team's next not-yet-played game, same "skip byes/completed/undated"
  * rule as recomputeNextGame but scoped to one team instead of across all of
@@ -676,68 +672,127 @@ function fmtWeekCardDate(g){
   return `${weekday} ${md} · Time TBA`;
 }
 
-/** Teams with a game in the coming week first (soonest first), then every
- * other tracked team after — one unified list, so a team's news card is
- * never shown twice. */
-function buildHomeTeamList(){
+/** Teams with a game in the coming week, soonest first. Teams without one
+ * (bye week, off week, or just tracked for later in the season) don't get a
+ * preview card here — there's nothing to preview yet. */
+function buildWeekGames(){
   const ONE_WEEK = 7*24*60*60*1000;
   const now = Date.now();
-  const withGame = state.teams
+  return state.teams
     .map(team=>({team, g: nextGameForTeam(team)}))
     .filter(x=> x.g && gameTimeMs(x.g) >= now && gameTimeMs(x.g) <= now + ONE_WEEK)
     .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
-  const seen = new Set(withGame.map(x=>x.team.id));
-  const rest = state.teams.filter(t=>!seen.has(t.id)).map(team=>({team, g:null}));
-  return [...withGame, ...rest];
 }
 
-/** One homepage card: this week's game (if any) at a glance up top, that
- * team's news underneath, collapsed/expanded by clicking anywhere on the
- * card (headline links inside still open normally). */
-function buildHomeTeamCard(team, g){
+/** "63% win chance" from the game's stored winProb (0-1, already oriented
+ * to this tracked team — see functions/index.js), or null if CFBD hasn't
+ * published a pregame probability for this game yet. */
+function winProbLabel(g){
+  if(g.winProb===null || g.winProb===undefined) return null;
+  return `${Math.round(g.winProb*100)}% win chance`;
+}
+
+/** Free-tier "insights" — a one-line recent-form summary computed entirely
+ * from schedule data already synced to this browser (no extra API/database
+ * call): record, points-for, and points-against over the team's last up-to-5
+ * completed games. Returns null if the team hasn't played yet this season. */
+function computeTeamInsights(team){
+  const sched = schedulesByTeam[team.id];
+  if(!sched || !sched.games) return null;
+  const completed = sched.games
+    .filter(g=>!g.bye && g.result && g.score && g.date)
+    .sort((a,b)=> a.date.localeCompare(b.date));
+  const recent = completed.slice(-5);
+  if(!recent.length) return null;
+
+  let wins=0, losses=0, ties=0, pf=0, pa=0, counted=0;
+  recent.forEach(g=>{
+    if(g.result==='W') wins++;
+    else if(g.result==='L') losses++;
+    else if(g.result==='T') ties++;
+    const parts = String(g.score||'').split('-').map(Number);
+    if(parts.length===2 && !parts.some(isNaN)){ pf+=parts[0]; pa+=parts[1]; counted++; }
+  });
+  const record = ties ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+  const span = recent.length===5 ? 'last 5' : `last ${recent.length}`;
+  let line = `${record} in ${span}`;
+  if(counted){
+    line += ` · ${(pf/counted).toFixed(1)} ppg · ${(pa/counted).toFixed(1)} papg allowed`;
+  }
+  return line;
+}
+
+/** One homepage game-preview card: date/matchup at a glance, win chance, and
+ * the free-tier recent-form insight — purely informational, no news here
+ * anymore (see "News for You" below). */
+function buildWeekCard(team, g){
   const card = document.createElement('div');
   card.className = 'week-card';
 
-  const news = newsByTeam[team.id];
-  let articlesHtml;
-  if(!news){
-    articlesHtml = '<div class="news-empty">Fetching headlines&hellip;</div>';
-  } else if(!news.articles || !news.articles.length){
-    articlesHtml = '<div class="news-empty">No recent headlines found.</div>';
-  } else {
-    articlesHtml = news.articles.map(a => `
-      <a class="news-item" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
-        <span class="news-item-title">${escapeHtml(a.title)}</span>
-        <span class="news-item-meta">${escapeHtml(a.source||'')}</span>
-      </a>
-    `).join('');
-  }
-
   const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-  const dateHtml = g ? `<div class="week-card-date">${escapeHtml(fmtWeekCardDate(g))}</div>` : '';
-  const matchupHtml = g ? `<div class="week-card-matchup">${g.site==='A'?'@':'vs'} ${escapeHtml(g.opponent)}</div>` : '';
-  const collapsed = isNewsCollapsed(team);
-  card.className += collapsed ? ' collapsed' : '';
+  const wpText = winProbLabel(g);
+  const insightsText = computeTeamInsights(team);
+  const insightsHtml = (wpText || insightsText) ? `
+    <div class="week-card-insights">
+      ${wpText ? `<span class="win-prob">${escapeHtml(wpText)}</span>` : ''}
+      ${insightsText ? `<span class="insight-line">${escapeHtml(insightsText)}</span>` : ''}
+    </div>
+  ` : '';
 
   card.innerHTML = `
-    ${dateHtml}
+    <div class="week-card-date">${escapeHtml(fmtWeekCardDate(g))}</div>
     <div class="week-card-row">
       <div class="week-card-team">
         ${logoHtml}
         <div class="week-card-text">
           <div class="week-card-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</div>
-          ${matchupHtml}
+          <div class="week-card-matchup">${g.site==='A'?'@':'vs'} ${escapeHtml(g.opponent)}</div>
         </div>
       </div>
-      <span class="caret" title="${collapsed?'Expand':'Collapse'} headlines">&#9662;</span>
     </div>
-    <div class="news-list">${articlesHtml}</div>
+    ${insightsHtml}
   `;
-  card.addEventListener('click', (e)=>{
-    if(e.target.closest('.news-item')) return; // let headline links behave normally
-    toggleNewsCollapsed(team);
-  });
   return card;
+}
+
+/** "News for You": a single combined feed instead of one card per team.
+ * Each tracked team contributes a small, roughly-even share of its cached
+ * headlines, topped up with a slice of shared national CFB news, capped to
+ * a 5-10 item total. */
+function buildNewsForYou(){
+  const perTeamCap = state.teams.length <= 1 ? 5 : Math.max(1, Math.floor(6 / state.teams.length));
+  const teamItems = [];
+  state.teams.forEach(team=>{
+    const news = newsByTeam[team.id];
+    ((news && news.articles) || []).slice(0, perTeamCap).forEach(a=>{
+      teamItems.push({...a, tag: team.school});
+    });
+  });
+  const national = ((nationalNews && nationalNews.articles) || []).slice(0, 4)
+    .map(a=>({...a, tag: 'College Football'}));
+  return [...teamItems, ...national].slice(0, 10);
+}
+
+function renderNewsForYou(board){
+  const items = buildNewsForYou();
+  const section = document.createElement('div');
+  section.className = 'nfy-section';
+  section.innerHTML = '<h2>News for You:</h2>';
+  const grid = document.createElement('div');
+  grid.className = 'nfy-grid';
+  if(!items.length){
+    grid.innerHTML = '<div class="news-empty">Fetching headlines&hellip;</div>';
+  } else {
+    grid.innerHTML = items.map(a => `
+      <a class="nfy-item" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
+        <span class="nfy-tag">${escapeHtml(a.tag)}</span>
+        <span class="nfy-title">${escapeHtml(a.title)}</span>
+        <span class="nfy-meta">${escapeHtml(a.source||'')}</span>
+      </a>
+    `).join('');
+  }
+  section.appendChild(grid);
+  board.appendChild(section);
 }
 
 function appendInstallRow(board){
@@ -755,15 +810,19 @@ function renderHomepage(board){
     return;
   }
 
-  const combined = buildHomeTeamList();
-  const section = document.createElement('div');
-  section.className = 'week-section';
-  if(combined.some(x=>x.g)) section.innerHTML = '<h2>Your CFB Week:</h2>';
-  const list = document.createElement('div');
-  list.className = 'week-list';
-  combined.forEach(({team,g})=> list.appendChild(buildHomeTeamCard(team,g)));
-  section.appendChild(list);
-  board.appendChild(section);
+  const weekGames = buildWeekGames();
+  if(weekGames.length){
+    const section = document.createElement('div');
+    section.className = 'week-section';
+    section.innerHTML = '<h2>Your CFB Week:</h2>';
+    const list = document.createElement('div');
+    list.className = 'week-list';
+    weekGames.forEach(({team,g})=> list.appendChild(buildWeekCard(team,g)));
+    section.appendChild(list);
+    board.appendChild(section);
+  }
+
+  renderNewsForYou(board);
   appendInstallRow(board);
 }
 
