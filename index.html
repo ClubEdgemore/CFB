@@ -31,8 +31,14 @@
     </div>
     <div class="season">
       <span id="seasonLabel"></span>
-      <span class="header-action" id="authBtn" style="display:none;"></span>
-      <span class="header-action" id="printAllBtn" title="Print every tracked team's schedule">&#128424;&#65039; Print all</span>
+      <div class="menu-wrap">
+        <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" title="Menu">&#9776;</button>
+        <div class="menu-dropdown" id="menuDropdown" style="display:none;">
+          <button class="menu-item" id="menuAuthBtn"></button>
+          <button class="menu-item" id="menuInstallBtn">&#128241; Add to Home Screen</button>
+          <button class="menu-item" id="menuPrintBtn">&#128424;&#65039; Print all</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -227,18 +233,17 @@ function onAuthStateChanged(user){
 }
 
 function updateAuthButton(){
-  const el = document.getElementById('authBtn');
+  const el = document.getElementById('menuAuthBtn');
   if(!el) return;
-  el.style.display = 'inline';
   if(firebaseUser){
     const name = (firebaseUser.displayName || firebaseUser.email || 'your account').split(' ')[0];
     el.textContent = `Signed in as ${name} · Sign out`;
     el.title = 'Sign out (your teams stay saved to this account)';
-    el.onclick = signOutOfApp;
+    el.onclick = ()=>{ closeMenu(); signOutOfApp(); };
   } else {
-    el.textContent = 'Sign in with Google to sync across devices';
+    el.textContent = 'Sign in with Google to sync';
     el.title = '';
-    el.onclick = signInWithGoogle;
+    el.onclick = ()=>{ closeMenu(); signInWithGoogle(); };
   }
 }
 
@@ -960,18 +965,9 @@ function renderNewsForYou(board){
   board.appendChild(section);
 }
 
-function appendInstallRow(board){
-  const row = document.createElement('div');
-  row.className = 'pwa-install-row';
-  row.innerHTML = `<button class="small-btn ghost" id="pwaOpenBtn">&#128241; Add to Home Screen</button>`;
-  board.appendChild(row);
-  row.querySelector('#pwaOpenBtn').addEventListener('click', openPwaModal);
-}
-
 function renderHomepage(board){
   if(!state.teams.length){
     board.innerHTML = '<div class="empty">Add a team to see its news here.</div>';
-    appendInstallRow(board);
     return;
   }
 
@@ -988,7 +984,6 @@ function renderHomepage(board){
   }
 
   renderNewsForYou(board);
-  appendInstallRow(board);
 }
 
 function renderBoard(){
@@ -1170,7 +1165,34 @@ async function removeTeam(id){
   }catch(e){ console.error('removeTeam failed', e); }
 }
 
-document.getElementById('printAllBtn').addEventListener('click', ()=>{
+/* ---------------- header hamburger menu ---------------- */
+function closeMenu(){
+  document.getElementById('menuDropdown').style.display = 'none';
+  document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
+}
+function toggleMenu(){
+  const dropdown = document.getElementById('menuDropdown');
+  const open = dropdown.style.display !== 'none';
+  dropdown.style.display = open ? 'none' : 'block';
+  document.getElementById('menuBtn').setAttribute('aria-expanded', String(!open));
+}
+document.getElementById('menuBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  toggleMenu();
+});
+document.addEventListener('click', (e)=>{
+  const wrap = document.querySelector('.menu-wrap');
+  if(wrap && !wrap.contains(e.target)) closeMenu();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeMenu();
+});
+document.getElementById('menuInstallBtn').addEventListener('click', ()=>{
+  closeMenu();
+  openPwaModal();
+});
+document.getElementById('menuPrintBtn').addEventListener('click', ()=>{
+  closeMenu();
   buildPrintView(); // make sure it reflects the latest data before printing
   window.print();
 });
