@@ -678,6 +678,21 @@ function nextGameForTeam(team){
   return best;
 }
 
+/** A team's most recently completed game (official result, from nightly
+ * refresh) — used by "Your CFB Week" to keep a final score up for people
+ * checking the morning after, rather than jumping straight to next week's
+ * preview the moment the schedule refreshes. */
+function mostRecentCompletedGame(team){
+  const sched = schedulesByTeam[team.id];
+  if(!sched || !sched.games) return null;
+  let best = null;
+  sched.games.forEach(g=>{
+    if(g.bye || !g.result || !g.date) return;
+    if(!best || g.date > best.date || (g.date === best.date && kickoffMs(g) > kickoffMs(best))) best = g;
+  });
+  return best;
+}
+
 /** For a game with a known kickoff, its exact time; for a TBD-time game,
  * midnight (ET) on its date — either way, something sortable/comparable
  * against a "within the next 7 days" window. */
@@ -710,13 +725,36 @@ function fmtWeekCardDate(g){
  * doesn't flash away for a moment right at kickoff. */
 const KICKOFF_GRACE_MS = 6*60*1000;
 
+/** The next Tuesday at 6am (viewer's own local time — plenty good enough
+ * for this soft UX threshold, no timezone math needed) on or after a game's
+ * kickoff. That's the "week reset" point: a finished game's card keeps
+ * showing its final score in "Your CFB Week" all the way through it, so
+ * someone who was out celebrating (or commiserating) on Saturday can still
+ * pull it up Sunday morning — instead of it vanishing the instant the
+ * nightly refresh marks the game complete. */
+function weekResetMs(kickoffMs){
+  const d = new Date(kickoffMs);
+  d.setHours(6,0,0,0);
+  while(d.getDay() !== 2 || d.getTime() <= kickoffMs){
+    d.setDate(d.getDate()+1);
+  }
+  return d.getTime();
+}
+
 function buildWeekGames(){
   const ONE_WEEK = 7*24*60*60*1000;
   const now = Date.now();
   return state.teams
-    .map(team=>({team, g: nextGameForTeam(team)}))
+    .map(team=>{
+      // A just-finished game (official result) takes priority over
+      // previewing next week's, as long as we're still within its "week".
+      const recent = mostRecentCompletedGame(team);
+      if(recent && now < weekResetMs(gameTimeMs(recent))) return {team, g: recent};
+      return {team, g: nextGameForTeam(team)};
+    })
     .filter(x=>{
       if(!x.g) return false;
+      if(x.g.result) return true; // official final, already time-gated above
       const t = gameTimeMs(x.g);
       if(t > now + ONE_WEEK) return false; // too far out to preview yet
       if(t >= now) return true; // hasn't kicked off yet — always show
@@ -871,19 +909,54 @@ function buildLiveScoreBlock(team, g, live){
   return scoreRow + table;
 }
 
+/** Simple final-score fallback for once the live-scoreboard doc no longer
+ * carries this game (CFBD stops returning a completed game after a while)
+ * but it's still within its "week" — reads straight from the schedule's own
+ * official result/score instead, so the card never actually goes blank.
+ * Same visual row as the live version, minus the quarter-by-quarter table
+ * and ball icon (neither is in the plain schedule data) and minus the
+ * escape hatch for a null score (a real result always has one). */
+function buildFinalScoreBlock(team, g){
+  const parts = String(g.score||'').split('-').map(Number);
+  const myPts = parts.length===2 && !isNaN(parts[0]) ? parts[0] : null;
+  const oppPts = parts.length===2 && !isNaN(parts[1]) ? parts[1] : null;
+  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : '';
+  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
+  return `
+    <div class="week-card-score-row">
+      <div class="score-team">
+        ${myLogoHtml}
+        <span class="score-name">${escapeHtml(team.school)} ${rankBadge(team.rank)}</span>
+      </div>
+      <div class="score-nums">
+        <span class="score-num">${myPts!==null ? myPts : '&ndash;'}</span>
+        <span class="score-sep">-</span>
+        <span class="score-num">${oppPts!==null ? oppPts : '&ndash;'}</span>
+      </div>
+      <div class="score-team score-team-opp">
+        <span class="score-name">${escapeHtml(g.opponent)}</span>
+        ${oppLogoHtml}
+      </div>
+    </div>
+  `;
+}
+
 /** One homepage game-preview card. Before kickoff: date/matchup at a glance,
  * win chance, and the free-tier recent-form insight. Once live (or just
  * finished): a LIVE/Final badge up top and a Google-style score + quarter
  * breakdown instead. Delayed (kickoff time passed but CFBD itself still
  * calls it "scheduled"): a yellow Delayed badge, but the matchup/insights
- * block stays as-is since there's no real score to show yet. No news here
- * either way (see "News for You" below). */
+ * block stays as-is since there's no real score to show yet. Once official
+ * (nightly-refreshed) and the live doc has aged out: still Final, just the
+ * plain score instead of the quarter table. No news here either way (see
+ * "News for You" below). */
 function buildWeekCard(team, g){
   const card = document.createElement('div');
   const live = liveScores[g.id];
   const isLive = !!live && live.status === 'in_progress';
   const isJustFinished = !!live && live.status === 'completed';
   const isDelayed = !!live && live.status === 'scheduled';
+  const isOfficialFinal = !isLive && !isDelayed && !!g.result;
   card.className = 'week-card' + (isLive ? ' live' : isDelayed ? ' delayed' : '');
 
   let topRight;
@@ -891,7 +964,7 @@ function buildWeekCard(team, g){
     const statusLabel = liveStatusLabel(live);
     const badgeText = statusLabel==='HALFTIME' ? 'HALFTIME' : 'LIVE' + (statusLabel ? ` &middot; ${escapeHtml(statusLabel)}` : '');
     topRight = `<span class="week-card-live-badge"><span class="live-dot"></span>${badgeText}</span>`;
-  } else if(isJustFinished){
+  } else if(isJustFinished || isOfficialFinal){
     topRight = '<span class="week-card-final-badge">Final</span>';
   } else if(isDelayed){
     topRight = '<span class="week-card-delayed-badge"><span class="live-dot delayed-dot"></span>Delayed</span>';
@@ -902,6 +975,8 @@ function buildWeekCard(team, g){
   let lowerHtml;
   if(live && (isLive || isJustFinished)){
     lowerHtml = buildLiveScoreBlock(team, g, live);
+  } else if(isOfficialFinal){
+    lowerHtml = buildFinalScoreBlock(team, g);
   } else {
     const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
     const wpPct = winProbPct(g);
