@@ -55,7 +55,8 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   flex-wrap:wrap;
 }
 .masthead-brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-.masthead-logo{height:38px;width:38px;object-fit:contain;flex:none;border-radius:8px;}
+.masthead-logo{height:38px;width:38px;object-fit:contain;flex:none;border-radius:8px;cursor:pointer;}
+.masthead-logo:hover{opacity:0.85;}
 .section-icon{height:22px;width:auto;object-fit:contain;vertical-align:middle;margin-right:8px;}
 .masthead h1{
   font-family:'Barlow Condensed',sans-serif;
@@ -79,19 +80,38 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   align-items:center;
   gap:14px;
 }
-/* Header hamburger menu — sign in/out, Add to Home Screen, Print all */
+/* Header hamburger menu — sign in/out, Add to Home Screen, Print all.
+   Sized to match .masthead-logo (38x38) so the two feel like a matched pair
+   in the header. The icon itself is drawn as three CSS bars rather than a
+   Unicode/emoji glyph — some fonts don't carry a hamburger character and
+   silently fall back to a blank tofu box instead of visible bars. */
 .menu-wrap{position:relative;}
 .menu-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:38px;
+  height:38px;
   background:transparent;
   border:1px solid var(--line);
-  border-radius:6px;
+  border-radius:8px;
   color:var(--ink-soft);
-  font-size:16px;
-  line-height:1;
-  padding:6px 10px;
+  padding:0;
   cursor:pointer;
+  flex:none;
 }
 .menu-btn:hover{color:var(--ink);border-color:var(--ink-soft);}
+.menu-btn-icon, .menu-btn-icon::before, .menu-btn-icon::after{
+  display:block;
+  width:18px;
+  height:2px;
+  background:currentColor;
+  border-radius:1px;
+}
+.menu-btn-icon{position:relative;}
+.menu-btn-icon::before, .menu-btn-icon::after{content:'';position:absolute;left:0;}
+.menu-btn-icon::before{top:-6px;}
+.menu-btn-icon::after{top:6px;}
 .menu-dropdown{
   position:absolute;
   top:calc(100% + 6px);
@@ -516,6 +536,12 @@ tbody tr:hover .del-row{opacity:1;}
 
 @media (max-width:640px){
   .masthead h1{font-size:26px;}
+
+  /* Pin the hamburger to the masthead's top-right corner, out of the
+     wrapping season/menu row entirely (same 38x38 size as the logo). */
+  .masthead{position:relative;padding-right:52px;}
+  .menu-wrap{position:absolute;top:0;right:0;}
+  .menu-dropdown{right:0;}
 
   .new-team-form input{font-size:16px !important;}
 

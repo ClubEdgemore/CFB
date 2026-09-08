@@ -25,14 +25,14 @@
 
   <div class="masthead">
     <div class="masthead-brand">
-      <img src="masthead-logo.png" alt="" class="masthead-logo">
+      <img src="masthead-logo.png" alt="Go to homepage" class="masthead-logo" id="mastheadLogo" role="button" tabindex="0" title="Go to homepage">
       <h1>Saturday is for CFB</h1>
       <span class="tagline">Game Day, Your Way</span>
     </div>
     <div class="season">
       <span id="seasonLabel"></span>
       <div class="menu-wrap">
-        <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" title="Menu">&#9776;</button>
+        <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" title="Menu"><span class="menu-btn-icon"></span></button>
         <div class="menu-dropdown" id="menuDropdown" style="display:none;">
           <button class="menu-item" id="menuAuthBtn"></button>
           <button class="menu-item" id="menuInstallBtn">&#128241; Add to Home Screen</button>
@@ -469,6 +469,17 @@ function rankBadge(rank){
   return rank ? `<span class="rank-badge">${escapeHtml(rank)}</span>` : '';
 }
 
+/** Shared by the Home tab and the clickable masthead logo — both just land
+ * you back on the homepage. */
+function goHome(){
+  state.activeTeam = '__home__'; addingTeam=false; lsSet('cfb-active-team', '__home__');
+  render();
+}
+document.getElementById('mastheadLogo').addEventListener('click', goHome);
+document.getElementById('mastheadLogo').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goHome(); }
+});
+
 function renderTabs(){
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = '';
@@ -476,10 +487,7 @@ function renderTabs(){
   const homeTab = document.createElement('div');
   homeTab.className = 'tab home-tab' + (state.activeTeam === '__home__' ? ' active' : '');
   homeTab.innerHTML = `<img src="logo-icon.png" alt="" style="width:20px;height:20px;object-fit:contain;"><span>Home</span>`;
-  homeTab.addEventListener('click', ()=>{
-    state.activeTeam = '__home__'; addingTeam=false; lsSet('cfb-active-team', '__home__');
-    render();
-  });
+  homeTab.addEventListener('click', goHome);
   tabs.appendChild(homeTab);
 
   state.teams.forEach(team=>{
