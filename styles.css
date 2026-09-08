@@ -584,6 +584,23 @@ tbody tr:hover .del-row{opacity:1;}
   }
   td .opp{width:100%;}
   td.opp-cell{order:-1;padding-top:2px;}
+
+  /* The generic mobile table rules above turn EVERY <table> into a stack of
+     card-style rows — meant for the season schedule table, but it was also
+     hijacking the compact live-score quarter table, blowing it up into a
+     tall stack of single numbers instead of a tidy grid. Reset it back to
+     a plain table here (a class selector always outranks the bare-element
+     selectors above, regardless of order, so this wins reliably). */
+  .quarter-table{display:table;}
+  .quarter-table tr{display:table-row;border:none;margin:0;padding:0;background:transparent;}
+  .quarter-table th, .quarter-table td{
+    display:table-cell;
+    text-align:center;
+    padding:3px 6px;
+    border-bottom:none;
+    font-size:11px;
+  }
+  .quarter-table .q-team{text-align:left;}
 }
 
 /* ---------------- print ("Print all schedules") ----------------
