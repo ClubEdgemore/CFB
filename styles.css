@@ -228,12 +228,15 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .week-card-insights .win-prob{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--win);}
 .week-card-insights .insight-line{font-size:12.5px;color:var(--ink-soft);}
 
-/* Live / just-finished game cards */
+/* Live / delayed / just-finished game cards */
 .week-card.live{border-color:var(--win);}
+.week-card.delayed{border-color:var(--warn);}
 .week-card-live-badge{display:inline-flex;align-items:center;gap:6px;color:var(--win);font-weight:700;font-size:12.5px;letter-spacing:.04em;}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--win);flex:none;animation:live-pulse 1.4s ease-in-out infinite;}
 @keyframes live-pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
 .week-card-final-badge{color:var(--ink-soft);font-weight:700;font-size:12.5px;letter-spacing:.04em;}
+.week-card-delayed-badge{display:inline-flex;align-items:center;gap:6px;color:var(--warn);font-weight:700;font-size:12.5px;letter-spacing:.04em;}
+.delayed-dot{background:var(--warn);animation:none;}
 
 .week-card-score-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .score-team{display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
@@ -244,11 +247,17 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .score-sep{opacity:.4;font-weight:400;}
 .ball-icon{font-size:12px;flex:none;line-height:1;}
 
-.quarter-table{width:100%;border-collapse:collapse;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;}
-.quarter-table th,.quarter-table td{padding:3px 6px;text-align:center;color:var(--ink-soft);}
+.quarter-table{width:100%;table-layout:fixed;border-collapse:collapse;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;}
+.quarter-table th,.quarter-table td{padding:3px 6px;text-align:center;color:var(--ink-soft);overflow:hidden;}
 .quarter-table th{font-weight:600;}
 .quarter-table td{color:var(--ink);}
-.quarter-table .q-team{text-align:left;font-weight:600;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;}
+/* table-layout:fixed sizes every column off this <colgroup>, so the name
+   column always keeps its ~38% share instead of being squeezed down to
+   nothing by the browser's default auto-layout (which previously combined
+   with max-width:0 to truncate names to a single letter) — the quarter/
+   total columns share the rest, staying compact on the right. */
+.q-col-team{width:38%;}
+.quarter-table .q-team{text-align:left;font-weight:600;color:var(--ink-soft);white-space:nowrap;text-overflow:ellipsis;}
 .quarter-table .q-total{font-weight:800;color:var(--ink);}
 .quarter-table tr+tr td,.quarter-table tr+tr th{border-top:1px solid var(--line);}
 

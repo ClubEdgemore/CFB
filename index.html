@@ -691,6 +691,12 @@ function fmtWeekCardDate(g){
 /** Teams with a game in the coming week, soonest first. Teams without one
  * (bye week, off week, or just tracked for later in the season) don't get a
  * preview card here — there's nothing to preview yet. */
+/** Grace window after a game's scheduled kickoff before we give up on
+ * showing it with no live signal at all — covers the up-to-2-minute gap
+ * between kickoff and the next live-scoreboard poll, so an on-time game
+ * doesn't flash away for a moment right at kickoff. */
+const KICKOFF_GRACE_MS = 6*60*1000;
+
 function buildWeekGames(){
   const ONE_WEEK = 7*24*60*60*1000;
   const now = Date.now();
@@ -701,11 +707,15 @@ function buildWeekGames(){
       const t = gameTimeMs(x.g);
       if(t > now + ONE_WEEK) return false; // too far out to preview yet
       if(t >= now) return true; // hasn't kicked off yet — always show
-      // Kickoff already passed: only keep showing it if it's live (or just
-      // finished) per the live-scoreboard doc — otherwise nightlyRefresh
-      // just hasn't caught up to mark it final/completed yet, and it'll
-      // roll off on its own once it does.
-      return !!liveScores[x.g.id];
+      // Kickoff time has passed. Keep showing it if there's ANY live-doc
+      // entry at all — in_progress, completed, or "scheduled" (CFBD's own
+      // signal that this specific game is delayed/hasn't actually started
+      // yet) — buildWeekCard decides how to render each of those. With no
+      // live-doc entry yet, give it a short grace period (the poll runs
+      // every 2 minutes, so there's normally a brief gap right at kickoff)
+      // before rolling it off the list.
+      if(liveScores[x.g.id]) return true;
+      return (now - t) <= KICKOFF_GRACE_MS;
     })
     .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
 }
@@ -764,6 +774,34 @@ function hasBall(g, live, wantHome){
   return live.possession === (wantHome ? 'home' : 'away');
 }
 
+/** CFBD's `clock` isn't documented to a guaranteed shape — normalize either
+ * a "4:32"-style string or a raw seconds number down to "M:SS". */
+function fmtClock(raw){
+  if(raw===null || raw===undefined || raw==='') return null;
+  if(typeof raw === 'number'){
+    const m = Math.floor(raw/60), s = Math.floor(raw%60);
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+  return String(raw);
+}
+
+/** "Q3 4:32", "HALFTIME", or "OT" for a live game — built from `period` +
+ * `clock` on the live-scoreboard doc, which is the closest thing CFBD gives
+ * us to time-remaining-in-quarter. Halftime isn't its own status from CFBD
+ * as far as I've seen — it's inferred as end of the 2nd quarter (period 2,
+ * clock run down to 0:00). Returns null if neither field is available yet
+ * (right at kickoff, before CFBD has published a period/clock for the
+ * game), in which case the card just falls back to a plain "LIVE" label. */
+function liveStatusLabel(live){
+  if(!live) return null;
+  const period = live.period;
+  const clockStr = fmtClock(live.clock);
+  if(period===2 && (clockStr==='0:00' || clockStr==='00:00')) return 'HALFTIME';
+  if(!period) return null;
+  const q = period>4 ? 'OT' : `Q${period}`;
+  return clockStr ? `${q} ${clockStr}` : q;
+}
+
 /** Google-style live/final score row + quarter-by-quarter table, swapped in
  * for the win%/insights block once a game is underway (or has just ended,
  * before nightlyRefresh has caught up to mark it final in the schedule
@@ -811,6 +849,7 @@ function buildLiveScoreBlock(team, g, live){
   };
   const table = `
     <table class="quarter-table">
+      <colgroup><col class="q-col-team">${'<col>'.repeat(cols)}<col class="q-col-total"></colgroup>
       ${head}
       ${rowHtml(team.school, myLines, myPts)}
       ${rowHtml(g.opponent, oppLines, oppPts)}
@@ -822,25 +861,33 @@ function buildLiveScoreBlock(team, g, live){
 /** One homepage game-preview card. Before kickoff: date/matchup at a glance,
  * win chance, and the free-tier recent-form insight. Once live (or just
  * finished): a LIVE/Final badge up top and a Google-style score + quarter
- * breakdown instead. No news here either way (see "News for You" below). */
+ * breakdown instead. Delayed (kickoff time passed but CFBD itself still
+ * calls it "scheduled"): a yellow Delayed badge, but the matchup/insights
+ * block stays as-is since there's no real score to show yet. No news here
+ * either way (see "News for You" below). */
 function buildWeekCard(team, g){
   const card = document.createElement('div');
   const live = liveScores[g.id];
   const isLive = !!live && live.status === 'in_progress';
   const isJustFinished = !!live && live.status === 'completed';
-  card.className = 'week-card' + (isLive ? ' live' : '');
+  const isDelayed = !!live && live.status === 'scheduled';
+  card.className = 'week-card' + (isLive ? ' live' : isDelayed ? ' delayed' : '');
 
   let topRight;
   if(isLive){
-    topRight = '<span class="week-card-live-badge"><span class="live-dot"></span>LIVE</span>';
+    const statusLabel = liveStatusLabel(live);
+    const badgeText = statusLabel==='HALFTIME' ? 'HALFTIME' : 'LIVE' + (statusLabel ? ` &middot; ${escapeHtml(statusLabel)}` : '');
+    topRight = `<span class="week-card-live-badge"><span class="live-dot"></span>${badgeText}</span>`;
   } else if(isJustFinished){
     topRight = '<span class="week-card-final-badge">Final</span>';
+  } else if(isDelayed){
+    topRight = '<span class="week-card-delayed-badge"><span class="live-dot delayed-dot"></span>Delayed</span>';
   } else {
     topRight = escapeHtml(fmtWeekCardDate(g));
   }
 
   let lowerHtml;
-  if(live){
+  if(live && (isLive || isJustFinished)){
     lowerHtml = buildLiveScoreBlock(team, g, live);
   } else {
     const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
