@@ -866,8 +866,8 @@ function buildLiveScoreBlock(team, g, live){
   const myBall = hasBall(g, live, g.isHome);
   const oppBall = hasBall(g, live, !g.isHome);
 
-  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : '';
-  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
+  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
+  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '<span class="dot opp-dot"></span>';
   const ball = '<span class="ball-icon" title="Has the ball">🏈</span>';
 
   const scoreRow = `
@@ -920,8 +920,8 @@ function buildFinalScoreBlock(team, g){
   const parts = String(g.score||'').split('-').map(Number);
   const myPts = parts.length===2 && !isNaN(parts[0]) ? parts[0] : null;
   const oppPts = parts.length===2 && !isNaN(parts[1]) ? parts[1] : null;
-  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : '';
-  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
+  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
+  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '<span class="dot opp-dot"></span>';
   return `
     <div class="week-card-score-row">
       <div class="score-team">
@@ -950,14 +950,22 @@ function buildFinalScoreBlock(team, g){
  * (nightly-refreshed) and the live doc has aged out: still Final, just the
  * plain score instead of the quarter table. No news here either way (see
  * "News for You" below). */
-function buildWeekCard(team, g){
+function buildWeekCard(team, g, opts){
+  opts = opts || {};
   const card = document.createElement('div');
   const live = liveScores[g.id];
   const isLive = !!live && live.status === 'in_progress';
   const isJustFinished = !!live && live.status === 'completed';
   const isDelayed = !!live && live.status === 'scheduled';
   const isOfficialFinal = !isLive && !isDelayed && !!g.result;
-  card.className = 'week-card' + (isLive ? ' live' : isDelayed ? ' delayed' : '');
+  card.className = 'week-card' + (opts.disableClick ? '' : ' clickable') + (isLive ? ' live' : isDelayed ? ' delayed' : '');
+  if(!opts.disableClick){
+    card.title = `See ${team.school}'s full schedule`;
+    card.addEventListener('click', ()=>{
+      state.activeTeam = team.id; addingTeam=false; lsSet('cfb-active-team', team.id);
+      render();
+    });
+  }
 
   let topRight;
   if(isLive){
@@ -969,7 +977,12 @@ function buildWeekCard(team, g){
   } else if(isDelayed){
     topRight = '<span class="week-card-delayed-badge"><span class="live-dot delayed-dot"></span>Delayed</span>';
   } else {
-    topRight = escapeHtml(fmtWeekCardDate(g));
+    // Pregame: date/time, TV, and location all on one line instead of TV
+    // living separately at the bottom of the card.
+    const bits = [fmtWeekCardDate(g)];
+    if(g.tv && g.tv !== 'TBA') bits.push(g.tv);
+    if(g.place) bits.push(g.place);
+    topRight = bits.map(escapeHtml).join(' &bull; ');
   }
 
   let lowerHtml;
@@ -978,26 +991,48 @@ function buildWeekCard(team, g){
   } else if(isOfficialFinal){
     lowerHtml = buildFinalScoreBlock(team, g);
   } else {
+    // Pregame (and Delayed, which shares this same layout — only the line
+    // above changes for that state) — both teams side by side, with a
+    // win%/insights column under each. The opponent's win% is free (always
+    // just 100 minus this team's), but their recent-form insight line only
+    // shows up if they also happen to be one of your OTHER tracked teams
+    // (that's the only case we actually have their game log synced).
     const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-    const wpPct = winProbPct(g);
-    const insightsText = computeTeamInsights(team);
-    const insightsHtml = (wpPct!==null || insightsText) ? `
-      <div class="week-card-insights">
-        ${wpPct!==null ? `<span class="win-prob" style="color:${winProbColor(wpPct)}">${wpPct}% win chance</span>` : ''}
-        ${insightsText ? `<span class="insight-line">${escapeHtml(insightsText)}</span>` : ''}
+    const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '<span class="dot opp-dot"></span>';
+    const siteLabel = g.site==='A' ? '@' : 'vs';
+
+    const myPct = winProbPct(g);
+    const oppPct = myPct!==null ? 100-myPct : null;
+    const myInsight = computeTeamInsights(team);
+    const oppTeam = findTrackedTeamByName(g.opponent);
+    const oppInsight = oppTeam ? computeTeamInsights(oppTeam) : null;
+
+    const statCol = (pct, insight) => `
+      <div class="week-card-stat-col">
+        ${pct!==null ? `<span class="win-prob" style="color:${winProbColor(pct)}">${pct}% win chance</span>` : ''}
+        ${insight ? `<span class="insight-line">${escapeHtml(insight)}</span>` : ''}
+      </div>
+    `;
+    const statsHtml = (myPct!==null || myInsight || oppPct!==null || oppInsight) ? `
+      <div class="week-card-stats-row">
+        ${statCol(myPct, myInsight)}
+        ${statCol(oppPct, oppInsight)}
       </div>
     ` : '';
+
     lowerHtml = `
-      <div class="week-card-row">
-        <div class="week-card-team">
+      <div class="week-card-matchup-row">
+        <div class="week-card-side">
           ${logoHtml}
-          <div class="week-card-text">
-            <div class="week-card-name">${escapeHtml(team.school)} ${rankBadge(team.rank)}</div>
-            <div class="week-card-matchup">${g.site==='A'?'@':'vs'} ${escapeHtml(g.opponent)}</div>
-          </div>
+          <span class="week-card-team-name">${rankBadge(team.rank)} ${escapeHtml(team.school)}</span>
+        </div>
+        <div class="week-card-vs">${siteLabel}</div>
+        <div class="week-card-side week-card-side-opp">
+          ${oppLogoHtml}
+          <span class="week-card-team-name">${escapeHtml(g.opponent)} ${rankBadge(g.opponentRank)}</span>
         </div>
       </div>
-      ${insightsHtml}
+      ${statsHtml}
     `;
   }
 
@@ -1006,6 +1041,15 @@ function buildWeekCard(team, g){
     ${lowerHtml}
   `;
   return card;
+}
+
+/** Is this opponent, by name, also one of your OTHER tracked teams? If so
+ * we already have their real schedule/insights synced (no new API/database
+ * cost) — used so a matchup between two of your own tracked teams can show
+ * real recent-form stats on both sides instead of just one. */
+function findTrackedTeamByName(schoolName){
+  const q = String(schoolName||'').toLowerCase();
+  return state.teams.find(t=>(t.school||'').toLowerCase()===q) || null;
 }
 
 /** "News for You": a single combined feed instead of one card per team.
@@ -1130,6 +1174,119 @@ function renderBoard(){
     return;
   }
 
+  // "Next Game" — the same card used for "Your CFB Week" on the homepage
+  // (logo, rank, matchup, win%/insights, TV), just for this one team, with
+  // a countdown added next to the date since there's room for it here.
+  const next = nextGameForTeam(team);
+  if(next){
+    const heading = document.createElement('h2');
+    heading.className = 'sched-section-h2';
+    heading.textContent = 'Next Game';
+    board.appendChild(heading);
+    const wrap = document.createElement('div');
+    wrap.className = 'team-next-game-wrap';
+    wrap.appendChild(buildWeekCard(team, next, {disableClick:true}));
+    board.appendChild(wrap);
+  }
+
+  // Upcoming (first up to last) and Past (most recent to oldest) as two
+  // separate sections instead of one long week-ordered list. A bye week
+  // gets sorted in with whichever side matches how far the team has
+  // actually played — there's no real date on a bye to sort by directly.
+  const maxPlayedWeek = games.reduce((max,g)=> (!g.bye && g.result) ? Math.max(max, g.week) : max, -Infinity);
+  const upcoming = [];
+  const past = [];
+  games.forEach(g=>{
+    const isPast = g.bye ? g.week <= maxPlayedWeek : !!g.result;
+    (isPast ? past : upcoming).push(g);
+  });
+  upcoming.sort((a,b)=> a.week - b.week);
+  past.sort((a,b)=> b.week - a.week);
+
+  const upcomingHeading = document.createElement('h2');
+  upcomingHeading.className = 'sched-section-h2';
+  upcomingHeading.textContent = 'Upcoming Games';
+  board.appendChild(upcomingHeading);
+  if(upcoming.length){
+    board.appendChild(buildScheduleTable(team, upcoming));
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'sched-section-empty';
+    empty.textContent = 'No upcoming games scheduled.';
+    board.appendChild(empty);
+  }
+
+  const pastHeading = document.createElement('h2');
+  pastHeading.className = 'sched-section-h2';
+  pastHeading.textContent = 'Past Games';
+  board.appendChild(pastHeading);
+  if(past.length){
+    board.appendChild(buildScheduleTable(team, past));
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'sched-section-empty';
+    empty.textContent = 'No games played yet this season.';
+    board.appendChild(empty);
+  }
+
+  renderTeamNews(board, team);
+}
+
+/** This team's own top 5 headlines, at the bottom of its page — makes the
+ * team page a real hub instead of just a schedule. Reuses newsByTeam,
+ * already synced the moment this team was added (see subscribeAllNews), so
+ * this is just a new place to show data already on hand, not a new fetch. */
+function renderTeamNews(board, team){
+  const news = newsByTeam[team.id];
+  const articles = ((news && news.articles) || []).slice(0, 5);
+
+  const heading = document.createElement('h2');
+  heading.className = 'sched-section-h2';
+  heading.innerHTML = `<img src="news-icon.png" alt="" class="section-icon">${escapeHtml(team.school)} News`;
+  board.appendChild(heading);
+
+  const grid = document.createElement('div');
+  grid.className = 'nfy-grid';
+  if(!articles.length){
+    grid.innerHTML = '<div class="news-empty">Fetching headlines&hellip;</div>';
+  } else {
+    grid.innerHTML = articles.map(a => `
+      <a class="nfy-item" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
+        <span class="nfy-title">${escapeHtml(a.title)}</span>
+        <span class="nfy-meta">${escapeHtml(a.source||'')}</span>
+      </a>
+    `).join('');
+  }
+  board.appendChild(grid);
+}
+
+/** One schedule row — a bye week, or a real game (clickable through to that
+ * matchup's Google search). Shared by both the Upcoming and Past tables. */
+function buildScheduleRow(team, g){
+  const tr = document.createElement('tr');
+  if(g.bye){
+    tr.className = 'bye';
+    tr.innerHTML = `<td class="wk">-</td><td class="date">Wk ${escapeHtml(g.week)}</td><td colspan="4" style="color:var(--ink-soft);font-style:italic;">Open date — bye week</td>`;
+    return tr;
+  }
+  const dt = g.date ? fmtDate(g.date) : {dow:'',md:'TBA'};
+  const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
+  const oppLogoHtml = g.opponentLogo ? `<img class="opp-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
+  tr.className = 'clickable';
+  tr.title = 'Search this matchup on Google';
+  tr.innerHTML = `
+    <td class="wk">${escapeHtml(g.week)}</td>
+    <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
+    <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div class="opp-main"><div class="opp-info"><span class="name">${escapeHtml(g.opponent)} ${rankBadge(g.opponentRank)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div>${oppLogoHtml}</div></div></td>
+    <td data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
+    <td class="tv" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
+    <td data-label="Result">${resultBadge(g)}</td>
+  `;
+  tr.addEventListener('click', ()=> window.open(gameSearchUrl(team, g), '_blank', 'noopener'));
+  return tr;
+}
+
+function buildScheduleTable(team, games){
   const table = document.createElement('table');
   table.innerHTML = `
     <thead><tr>
@@ -1141,33 +1298,9 @@ function renderBoard(){
       <th>Result</th>
     </tr></thead>`;
   const tbody = document.createElement('tbody');
-
-  games.forEach(g=>{
-    const tr = document.createElement('tr');
-    if(g.bye){
-      tr.className='bye';
-      tr.innerHTML = `<td class="wk">-</td><td class="date">Wk ${escapeHtml(g.week)}</td><td colspan="4" style="color:var(--ink-soft);font-style:italic;">Open date — bye week</td>`;
-      tbody.appendChild(tr);
-      return;
-    }
-    const dt = g.date ? fmtDate(g.date) : {dow:'',md:'TBA'};
-    const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
-    const oppLogoHtml = g.opponentLogo ? `<img class="opp-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
-    tr.className = 'clickable';
-    tr.title = 'Search this matchup on Google';
-    tr.innerHTML = `
-      <td class="wk">${escapeHtml(g.week)}</td>
-      <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
-      <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div class="opp-main"><div class="opp-info"><span class="name">${escapeHtml(g.opponent)} ${rankBadge(g.opponentRank)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div>${oppLogoHtml}</div></div></td>
-      <td data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
-      <td class="tv" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
-      <td data-label="Result">${resultBadge(g)}</td>
-    `;
-    tr.addEventListener('click', ()=> window.open(gameSearchUrl(team, g), '_blank', 'noopener'));
-    tbody.appendChild(tr);
-  });
+  games.forEach(g=> tbody.appendChild(buildScheduleRow(team, g)));
   table.appendChild(tbody);
-  board.appendChild(table);
+  return table;
 }
 
 /** Each schedule row is clickable — opens Google's own "<team> schedule"
