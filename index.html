@@ -140,6 +140,7 @@ function getSessionId(){
   return id;
 }
 const SESSION_ID = getSessionId();
+const FALLBACK_LOGO = 'fallback-logo.png'; // generic helmet silhouette used whenever a team/opponent has no logo on file
 
 let state = { teams: [], activeTeam: null };
 let fbConfig = null;
@@ -500,7 +501,7 @@ function renderTabs(){
     tab.style.background = bg;
     tab.style.color = fg;
     tab.style.borderColor = bg;
-    const logoHtml = team.logo ? `<img class="tab-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${fg};"></span>`;
+    const logoHtml = `<img class="tab-logo" src="${escapeHtml(team.logo || FALLBACK_LOGO)}" alt="">`;
     tab.innerHTML = `${logoHtml}<span>${escapeHtml(team.school)}</span>${rankBadge(team.rank)}<span class="close" data-remove="${team.id}" title="Remove team">&times;</span>`;
     tab.addEventListener('click', (e)=>{
       if(e.target.dataset.remove){ e.stopPropagation(); removeTeam(e.target.dataset.remove); return; }
@@ -771,6 +772,57 @@ function buildWeekGames(){
     .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
 }
 
+/** Full weekday name (e.g. "Saturday") for a game's kickoff — falls back to
+ * its date at noon ET if the kickoff time itself is still TBD. */
+function weekdayNameFor(g){
+  const base = (g.kickoff && !g.tbd) ? new Date(g.kickoff) : new Date((g.date||'')+'T12:00:00');
+  return new Intl.DateTimeFormat('en-US', {weekday:'long', timeZone:'America/New_York'}).format(base);
+}
+
+/** Scans "Your CFB Week" for schedule conflicts — two or more tracked
+ * teams' games kicking off within 60 minutes of each other, chained (so
+ * three games each <60min apart from the next all count as one 4-game
+ * pileup even if the first and last are further apart). Groups by
+ * calendar day first, since a Thursday game and a Saturday game should
+ * never be compared against each other.
+ *   - A day with a conflict gets one "N Games Conflict on <day>!" alert
+ *     per overlapping cluster (there's no separate "you have a game"
+ *     note for that day — the conflict alert already says so).
+ *   - A day with no conflict just gets one "You have a game on <day>!"
+ *     note, however many (non-overlapping) games are actually that day. */
+function buildWeekAlerts(weekGames){
+  const byDay = {};
+  weekGames.forEach(({g})=>{
+    const dayKey = g.date || 'unknown';
+    (byDay[dayKey] = byDay[dayKey] || []).push(g);
+  });
+
+  const alerts = [];
+  Object.keys(byDay).sort().forEach(dayKey=>{
+    const games = byDay[dayKey];
+    const weekday = weekdayNameFor(games[0]);
+
+    const timed = games.filter(g=> g.kickoff && !g.tbd).sort((a,b)=> gameTimeMs(a)-gameTimeMs(b));
+    const clusters = [];
+    timed.forEach(g=>{
+      const last = clusters[clusters.length-1];
+      if(last && gameTimeMs(g) - gameTimeMs(last[last.length-1]) < 60*60*1000){
+        last.push(g);
+      } else {
+        clusters.push([g]);
+      }
+    });
+
+    const conflicts = clusters.filter(c=> c.length >= 2);
+    if(conflicts.length){
+      conflicts.forEach(c=> alerts.push({type:'conflict', count:c.length, weekday}));
+    } else {
+      alerts.push({type:'single', weekday});
+    }
+  });
+  return alerts;
+}
+
 /** This team's win chance as a whole percent (0-100) from the game's stored
  * winProb (already oriented to this tracked team — see functions/index.js),
  * or null if CFBD hasn't published a pregame probability for this game yet. */
@@ -866,8 +918,8 @@ function buildLiveScoreBlock(team, g, live){
   const myBall = hasBall(g, live, g.isHome);
   const oppBall = hasBall(g, live, !g.isHome);
 
-  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '<span class="dot opp-dot"></span>';
+  const myLogoHtml = `<img class="team-logo" src="${escapeHtml(team.logo || FALLBACK_LOGO)}" alt="">`;
+  const oppLogoHtml = `<img class="team-logo" src="${escapeHtml(g.opponentLogo || FALLBACK_LOGO)}" alt="">`;
   const ball = '<span class="ball-icon" title="Has the ball">🏈</span>';
 
   const scoreRow = `
@@ -920,8 +972,8 @@ function buildFinalScoreBlock(team, g){
   const parts = String(g.score||'').split('-').map(Number);
   const myPts = parts.length===2 && !isNaN(parts[0]) ? parts[0] : null;
   const oppPts = parts.length===2 && !isNaN(parts[1]) ? parts[1] : null;
-  const myLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-  const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '<span class="dot opp-dot"></span>';
+  const myLogoHtml = `<img class="team-logo" src="${escapeHtml(team.logo || FALLBACK_LOGO)}" alt="">`;
+  const oppLogoHtml = `<img class="team-logo" src="${escapeHtml(g.opponentLogo || FALLBACK_LOGO)}" alt="">`;
   return `
     <div class="week-card-score-row">
       <div class="score-team">
@@ -997,8 +1049,8 @@ function buildWeekCard(team, g, opts){
     // just 100 minus this team's), but their recent-form insight line only
     // shows up if they also happen to be one of your OTHER tracked teams
     // (that's the only case we actually have their game log synced).
-    const logoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : `<span class="dot" style="background:${escapeHtml(team.color||'#1B2333')}"></span>`;
-    const oppLogoHtml = g.opponentLogo ? `<img class="team-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '<span class="dot opp-dot"></span>';
+    const logoHtml = `<img class="team-logo" src="${escapeHtml(team.logo || FALLBACK_LOGO)}" alt="">`;
+    const oppLogoHtml = `<img class="team-logo" src="${escapeHtml(g.opponentLogo || FALLBACK_LOGO)}" alt="">`;
     const siteLabel = g.site==='A' ? '@' : 'vs';
 
     const myPct = winProbPct(g);
@@ -1103,6 +1155,18 @@ function renderHomepage(board){
     const section = document.createElement('div');
     section.className = 'week-section';
     section.innerHTML = '<h2><img src="schedule-icon.png" alt="" class="section-icon">Your CFB Week:</h2>';
+
+    const alerts = buildWeekAlerts(weekGames);
+    if(alerts.length){
+      const alertsWrap = document.createElement('div');
+      alertsWrap.className = 'week-alerts';
+      alertsWrap.innerHTML = alerts.map(a => a.type === 'conflict'
+        ? `<div class="week-alert week-alert-conflict"><span class="week-alert-icon">&#9888;&#65039;</span>${a.count} Games Conflict on ${escapeHtml(a.weekday)}!</div>`
+        : `<div class="week-alert week-alert-single"><span class="week-alert-icon">&#128197;</span>You have a game on ${escapeHtml(a.weekday)}!</div>`
+      ).join('');
+      section.appendChild(alertsWrap);
+    }
+
     const list = document.createElement('div');
     list.className = 'week-list';
     weekGames.forEach(({team,g})=> list.appendChild(buildWeekCard(team,g)));
@@ -1145,7 +1209,7 @@ function renderBoard(){
   head.className = 'board-head';
   if(games){
     const rec = computeRecord(games);
-    const teamLogoHtml = team.logo ? `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="">` : '';
+    const teamLogoHtml = `<img class="team-logo" src="${escapeHtml(team.logo || FALLBACK_LOGO)}" alt="">`;
     head.innerHTML = `<div class="board-head-team">${teamLogoHtml}<div class="record">${rankBadge(team.rank)} <span class="win">${rec.w}</span>-<span class="loss">${rec.l}</span><span class="record-label">${currentSeasonYear()} record</span></div></div>`;
 
     const actions = document.createElement('div');
@@ -1189,10 +1253,11 @@ function renderBoard(){
     board.appendChild(wrap);
   }
 
-  // Upcoming (first up to last) and Past (most recent to oldest) as two
-  // separate sections instead of one long week-ordered list. A bye week
-  // gets sorted in with whichever side matches how far the team has
-  // actually played — there's no real date on a bye to sort by directly.
+  // Upcoming (first up to last), News, and Past (most recent to oldest) —
+  // in that order, each collapsible so a team deep into its season doesn't
+  // turn the page into an endless scroll. A bye week gets sorted in with
+  // whichever side matches how far the team has actually played — there's
+  // no real date on a bye to sort by directly.
   const maxPlayedWeek = games.reduce((max,g)=> (!g.bye && g.result) ? Math.max(max, g.week) : max, -Infinity);
   const upcoming = [];
   const past = [];
@@ -1203,47 +1268,68 @@ function renderBoard(){
   upcoming.sort((a,b)=> a.week - b.week);
   past.sort((a,b)=> b.week - a.week);
 
-  const upcomingHeading = document.createElement('h2');
-  upcomingHeading.className = 'sched-section-h2';
-  upcomingHeading.textContent = 'Upcoming Games';
-  board.appendChild(upcomingHeading);
-  if(upcoming.length){
-    board.appendChild(buildScheduleTable(team, upcoming));
-  } else {
-    const empty = document.createElement('div');
-    empty.className = 'sched-section-empty';
-    empty.textContent = 'No upcoming games scheduled.';
-    board.appendChild(empty);
-  }
+  buildCollapsibleSection(board, team, 'upcoming', 'Upcoming Games', content=>{
+    if(upcoming.length){
+      content.appendChild(buildScheduleTable(team, upcoming));
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'sched-section-empty';
+      empty.textContent = 'No upcoming games scheduled.';
+      content.appendChild(empty);
+    }
+  });
 
-  const pastHeading = document.createElement('h2');
-  pastHeading.className = 'sched-section-h2';
-  pastHeading.textContent = 'Past Games';
-  board.appendChild(pastHeading);
-  if(past.length){
-    board.appendChild(buildScheduleTable(team, past));
-  } else {
-    const empty = document.createElement('div');
-    empty.className = 'sched-section-empty';
-    empty.textContent = 'No games played yet this season.';
-    board.appendChild(empty);
-  }
+  buildCollapsibleSection(board, team, 'news', `<img src="news-icon.png" alt="" class="section-icon">${escapeHtml(team.school)} News`, content=>{
+    renderTeamNews(content, team);
+  });
 
-  renderTeamNews(board, team);
+  buildCollapsibleSection(board, team, 'past', 'Past Games', content=>{
+    if(past.length){
+      content.appendChild(buildScheduleTable(team, past));
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'sched-section-empty';
+      empty.textContent = 'No games played yet this season.';
+      content.appendChild(empty);
+    }
+  });
 }
 
-/** This team's own top 5 headlines, at the bottom of its page — makes the
- * team page a real hub instead of just a schedule. Reuses newsByTeam,
- * already synced the moment this team was added (see subscribeAllNews), so
- * this is just a new place to show data already on hand, not a new fetch. */
-function renderTeamNews(board, team){
-  const news = newsByTeam[team.id];
-  const articles = ((news && news.articles) || []).slice(0, 5);
+/** A collapsible board section: a clickable heading (with caret) plus a
+ * content wrapper that hides/shows. Collapsed state is remembered per
+ * team+section in localStorage so it survives renderBoard() re-running on
+ * every schedule/live-score update, instead of resetting open each time. */
+function buildCollapsibleSection(board, team, key, headingHtml, buildContent){
+  const storageKey = `cfb-collapse-${team.id}-${key}`;
+  let collapsed = lsGet(storageKey) === '1';
 
   const heading = document.createElement('h2');
-  heading.className = 'sched-section-h2';
-  heading.innerHTML = `<img src="news-icon.png" alt="" class="section-icon">${escapeHtml(team.school)} News`;
+  heading.className = 'sched-section-h2 collapsible' + (collapsed ? ' collapsed' : '');
+  heading.innerHTML = `<span class="section-caret">&#9662;</span>${headingHtml}`;
+
+  const content = document.createElement('div');
+  content.className = 'sched-section-content';
+  content.hidden = collapsed;
+  buildContent(content);
+
+  heading.addEventListener('click', ()=>{
+    collapsed = !collapsed;
+    lsSet(storageKey, collapsed ? '1' : '0');
+    heading.classList.toggle('collapsed', collapsed);
+    content.hidden = collapsed;
+  });
+
   board.appendChild(heading);
+  board.appendChild(content);
+}
+
+/** This team's own top 5 headlines — makes the team page a real hub instead
+ * of just a schedule. Reuses newsByTeam, already synced the moment this
+ * team was added (see subscribeAllNews), so this is just a new place to
+ * show data already on hand, not a new fetch. */
+function renderTeamNews(container, team){
+  const news = newsByTeam[team.id];
+  const articles = ((news && news.articles) || []).slice(0, 5);
 
   const grid = document.createElement('div');
   grid.className = 'nfy-grid';
@@ -1257,7 +1343,7 @@ function renderTeamNews(board, team){
       </a>
     `).join('');
   }
-  board.appendChild(grid);
+  container.appendChild(grid);
 }
 
 /** One schedule row — a bye week, or a real game (clickable through to that
@@ -1271,7 +1357,7 @@ function buildScheduleRow(team, g){
   }
   const dt = g.date ? fmtDate(g.date) : {dow:'',md:'TBA'};
   const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
-  const oppLogoHtml = g.opponentLogo ? `<img class="opp-logo" src="${escapeHtml(g.opponentLogo)}" alt="">` : '';
+  const oppLogoHtml = `<img class="opp-logo" src="${escapeHtml(g.opponentLogo || FALLBACK_LOGO)}" alt="">`;
   tr.className = 'clickable';
   tr.title = 'Search this matchup on Google';
   tr.innerHTML = `
