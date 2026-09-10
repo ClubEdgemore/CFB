@@ -1154,7 +1154,12 @@ function renderHomepage(board){
   if(weekGames.length){
     const section = document.createElement('div');
     section.className = 'week-section';
-    section.innerHTML = '<h2><img src="schedule-icon.png" alt="" class="section-icon">Your CFB Week:</h2>';
+    section.innerHTML = `
+      <div class="week-section-head">
+        <h2><img src="schedule-icon.png" alt="" class="section-icon">Your CFB Week:</h2>
+        <a class="shop-link" href="https://fanatics.93n6tx.net/E0Pzz4" target="_blank" rel="noopener sponsored">Shop Game Day Gear @ Fanatics</a>
+      </div>
+    `;
 
     const alerts = buildWeekAlerts(weekGames);
     if(alerts.length){

@@ -245,22 +245,41 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   border-radius:0 6px 6px 6px;
 }
 
+.week-section-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:18px 18px 12px;
+}
 .week-section h2{
   font-family:'Barlow Condensed',sans-serif;
   font-size:21px;
   font-weight:700;
   margin:0;
-  padding:18px 18px 12px;
   color:var(--ink);
 }
+.shop-link{
+  font-family:'Inter',sans-serif;
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  text-decoration:none;
+  border:1px solid var(--line);
+  border-radius:20px;
+  padding:6px 12px;
+  white-space:nowrap;
+}
+.shop-link:hover{color:var(--ink);border-color:var(--ink-soft);}
 .week-list{display:flex;flex-direction:column;gap:10px;padding:18px;}
-.week-section h2 + .week-list{padding-top:0;}
+.week-section-head + .week-list{padding-top:0;}
 
 /* "Your CFB Week" alert banners — a plain heads-up when a tracked team has
    exactly one game that day, or a louder warning when two or more tracked
    teams' games kick off within an hour of each other on the same day. */
 .week-alerts{display:flex;flex-direction:column;gap:8px;padding:18px 18px 0;}
-.week-section h2 + .week-alerts{padding-top:0;}
+.week-section-head + .week-alerts{padding-top:0;}
 .week-alerts + .week-list{padding-top:10px;}
 .week-alert{
   display:flex;
