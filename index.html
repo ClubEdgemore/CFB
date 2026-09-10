@@ -1282,7 +1282,7 @@ function renderBoard(){
       empty.textContent = 'No upcoming games scheduled.';
       content.appendChild(empty);
     }
-  });
+  }, true);
 
   buildCollapsibleSection(board, team, 'news', `<img src="news-icon.png" alt="" class="section-icon">${escapeHtml(team.school)} News`, content=>{
     renderTeamNews(content, team);
@@ -1303,10 +1303,14 @@ function renderBoard(){
 /** A collapsible board section: a clickable heading (with caret) plus a
  * content wrapper that hides/shows. Collapsed state is remembered per
  * team+section in localStorage so it survives renderBoard() re-running on
- * every schedule/live-score update, instead of resetting open each time. */
-function buildCollapsibleSection(board, team, key, headingHtml, buildContent){
+ * every schedule/live-score update, instead of resetting open each time.
+ * `defaultCollapsed` only applies the first time a viewer ever sees this
+ * section (before they've clicked it themselves) — once they toggle it,
+ * their own choice always wins from then on. */
+function buildCollapsibleSection(board, team, key, headingHtml, buildContent, defaultCollapsed){
   const storageKey = `cfb-collapse-${team.id}-${key}`;
-  let collapsed = lsGet(storageKey) === '1';
+  const stored = lsGet(storageKey);
+  let collapsed = stored === null ? !!defaultCollapsed : stored === '1';
 
   const heading = document.createElement('h2');
   heading.className = 'sched-section-h2 collapsible' + (collapsed ? ' collapsed' : '');
