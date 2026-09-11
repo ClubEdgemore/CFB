@@ -402,6 +402,12 @@ function recomputeNextGame(){
     if(!sched || !sched.games) return;
     sched.games.forEach(g=>{
       if(g.bye || g.result || !g.date) return; // skip byes, completed games, and unscheduled placeholders
+      // Also skip anything whose kickoff has already passed — CFBD's own
+      // schedule data only gets its `result` field filled in by the
+      // nightly refresh, so a game that already happened last night can
+      // still show up here as "unplayed" for hours. A countdown only
+      // makes sense for a game that hasn't kicked off yet.
+      if(kickoffMs(g) <= Date.now()) return;
       if(!best || g.date < best.g.date || (g.date === best.g.date && kickoffMs(g) < kickoffMs(best.g))){
         best = { team, g };
       }
@@ -726,6 +732,14 @@ function fmtWeekCardDate(g){
  * doesn't flash away for a moment right at kickoff. */
 const KICKOFF_GRACE_MS = 6*60*1000;
 
+/** How long past kickoff a game gets to actually start before we'll call
+ * it "Delayed" — CFBD marking a game "scheduled" moments after its own
+ * kickoff is normal poll lag, not an actual delay, so we hold off showing
+ * the Delayed badge (staying in the plain pregame view instead) until a
+ * game is still "scheduled" a full 10 minutes past its kickoff. If it
+ * goes live any time before that, it just shows Live like normal. */
+const DELAYED_GRACE_MS = 10*60*1000;
+
 /** The next Tuesday at 6am (viewer's own local time — plenty good enough
  * for this soft UX threshold, no timezone math needed) on or after a game's
  * kickoff. That's the "week reset" point: a finished game's card keeps
@@ -1008,7 +1022,7 @@ function buildWeekCard(team, g, opts){
   const live = liveScores[g.id];
   const isLive = !!live && live.status === 'in_progress';
   const isJustFinished = !!live && live.status === 'completed';
-  const isDelayed = !!live && live.status === 'scheduled';
+  const isDelayed = !!live && live.status === 'scheduled' && (Date.now() - kickoffMs(g)) >= DELAYED_GRACE_MS;
   const isOfficialFinal = !isLive && !isDelayed && !!g.result;
   card.className = 'week-card' + (opts.disableClick ? '' : ' clickable') + (isLive ? ' live' : isDelayed ? ' delayed' : '');
   if(!opts.disableClick){
@@ -1275,7 +1289,7 @@ function renderBoard(){
 
   buildCollapsibleSection(board, team, 'upcoming', 'Upcoming Games', content=>{
     if(upcoming.length){
-      content.appendChild(buildScheduleTable(team, upcoming));
+      content.appendChild(buildUpcomingTable(team, upcoming));
     } else {
       const empty = document.createElement('div');
       empty.className = 'sched-section-empty';
@@ -1286,11 +1300,11 @@ function renderBoard(){
 
   buildCollapsibleSection(board, team, 'news', `<img src="news-icon.png" alt="" class="section-icon">${escapeHtml(team.school)} News`, content=>{
     renderTeamNews(content, team);
-  });
+  }, true);
 
   buildCollapsibleSection(board, team, 'past', 'Past Games', content=>{
     if(past.length){
-      content.appendChild(buildScheduleTable(team, past));
+      content.appendChild(buildPastGamesList(team, past));
     } else {
       const empty = document.createElement('div');
       empty.className = 'sched-section-empty';
@@ -1357,31 +1371,31 @@ function renderTeamNews(container, team){
 
 /** One schedule row — a bye week, or a real game (clickable through to that
  * matchup's Google search). Shared by both the Upcoming and Past tables. */
-function buildScheduleRow(team, g){
+/** Upcoming Games table — no Result column (nothing to show yet) and no
+ * click-through to Google. That click-through was a stand-in for live
+ * scores back before we had our own; now that live scores/final states
+ * are built in, a schedule row is just a schedule row. */
+function buildUpcomingRow(team, g){
   const tr = document.createElement('tr');
   if(g.bye){
     tr.className = 'bye';
-    tr.innerHTML = `<td class="wk">-</td><td class="date">Wk ${escapeHtml(g.week)}</td><td colspan="4" style="color:var(--ink-soft);font-style:italic;">Open date — bye week</td>`;
+    tr.innerHTML = `<td class="wk">-</td><td class="date">Wk ${escapeHtml(g.week)}</td><td colspan="3" style="color:var(--ink-soft);font-style:italic;">Open date — bye week</td>`;
     return tr;
   }
   const dt = g.date ? fmtDate(g.date) : {dow:'',md:'TBA'};
   const siteLabel = g.site==='H' ? 'vs' : (g.site==='A' ? '@' : 'vs');
   const oppLogoHtml = `<img class="opp-logo" src="${escapeHtml(g.opponentLogo || FALLBACK_LOGO)}" alt="">`;
-  tr.className = 'clickable';
-  tr.title = 'Search this matchup on Google';
   tr.innerHTML = `
     <td class="wk">${escapeHtml(g.week)}</td>
     <td class="date"><span class="dow">${dt.dow}</span>${dt.md}</td>
     <td class="opp-cell"><div class="opp"><span class="site-tag">${siteLabel}</span><div class="opp-main"><div class="opp-info"><span class="name">${escapeHtml(g.opponent)} ${rankBadge(g.opponentRank)}</span>${g.place?`<span class="place">${escapeHtml(g.place)}</span>`:''}</div>${oppLogoHtml}</div></div></td>
     <td data-label="Time">${escapeHtml(g.time)||'TBA'}</td>
     <td class="tv" data-label="TV">${escapeHtml(g.tv)||'TBA'}</td>
-    <td data-label="Result">${resultBadge(g)}</td>
   `;
-  tr.addEventListener('click', ()=> window.open(gameSearchUrl(team, g), '_blank', 'noopener'));
   return tr;
 }
 
-function buildScheduleTable(team, games){
+function buildUpcomingTable(team, games){
   const table = document.createElement('table');
   table.innerHTML = `
     <thead><tr>
@@ -1390,30 +1404,32 @@ function buildScheduleTable(team, games){
       <th>Opponent</th>
       <th>Time</th>
       <th>TV / Streaming</th>
-      <th>Result</th>
     </tr></thead>`;
   const tbody = document.createElement('tbody');
-  games.forEach(g=> tbody.appendChild(buildScheduleRow(team, g)));
+  games.forEach(g=> tbody.appendChild(buildUpcomingRow(team, g)));
   table.appendChild(tbody);
   return table;
 }
 
-/** Each schedule row is clickable — opens Google's own "<team> schedule"
- * results, which show a schedule/score carousel Google keeps accurate per
- * game (including a live indicator on game day). A query naming both teams
- * (e.g. "Auburn vs Georgia football score") is ambiguous for annual
- * rivalries — Google can't tell which year's meeting is meant and often
- * surfaces an old score — so this points at the team's own schedule
- * instead, where the exact game is easy to find and always current. */
-function gameSearchUrl(team, g){
-  return 'https://www.google.com/search?q=' + encodeURIComponent(`${team.school} schedule`);
-}
-
-function resultBadge(g){
-  if(g.result==='W') return `<span class="result W">W ${escapeHtml(g.score||'')}</span>`;
-  if(g.result==='L') return `<span class="result L">L ${escapeHtml(g.score||'')}</span>`;
-  if(g.result==='T') return `<span class="result T">T ${escapeHtml(g.score||'')}</span>`;
-  return `<span class="result pending">&mdash;</span>`;
+/** Past Games — the same week-card final treatment as "Your CFB Week" on
+ * the homepage (score row + quarter table when we still have one, plain
+ * final score otherwise), reusing buildWeekCard itself so any change to
+ * that card's look updates here automatically. No click-through to
+ * Google — that was only ever a stand-in for not having real scores. */
+function buildPastGamesList(team, games){
+  const list = document.createElement('div');
+  list.className = 'week-list';
+  games.forEach(g=>{
+    if(g.bye){
+      const card = document.createElement('div');
+      card.className = 'week-card';
+      card.innerHTML = `<div class="week-card-date">Wk ${escapeHtml(g.week)}</div><div style="color:var(--ink-soft);font-style:italic;font-size:14px;">Open date — bye week</div>`;
+      list.appendChild(card);
+    } else {
+      list.appendChild(buildWeekCard(team, g, {disableClick:true}));
+    }
+  });
+  return list;
 }
 
 function buildNewTeamPanel(){

@@ -449,8 +449,6 @@ th.num, td.num{width:34px;text-align:center;}
 tbody tr{border-bottom:1px dashed var(--line);}
 tbody tr:last-child{border-bottom:none;}
 tbody tr.bye{background:var(--surface-soft);}
-tbody tr.clickable{cursor:pointer;}
-tbody tr.clickable:hover{background:var(--surface-soft);}
 td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
 
 .wk{
@@ -500,21 +498,6 @@ td{padding:12px 10px;vertical-align:middle;font-size:14.5px;}
 .opp .name{font-weight:600;}
 .opp .place{display:block;font-size:12px;color:var(--ink-soft);font-weight:400;}
 .tv{color:var(--ink-soft);}
-
-.result{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:4px 9px;
-  border-radius:20px;
-  font-weight:700;
-  font-size:13px;
-  font-family:'Barlow Condensed',sans-serif;
-}
-.result.W{background:var(--win-bg);color:var(--win);}
-.result.L{background:var(--loss-bg);color:var(--loss);}
-.result.T{background:var(--neutral-badge);color:var(--ink-soft);}
-.result.pending{background:var(--neutral-badge);color:var(--ink-soft);font-weight:600;}
 
 .del-row{
   opacity:0;
