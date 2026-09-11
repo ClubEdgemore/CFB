@@ -723,6 +723,16 @@ function fmtWeekCardDate(g){
   return `${weekday} ${md} · Time TBA`;
 }
 
+/** Just the kickoff time (no weekday/date) — used in Live/Delayed states
+ * where the date is redundant with "right now", so only the start time,
+ * TV, and location are worth showing next to the badge. */
+function fmtKickoffTimeOnly(g){
+  if(g.kickoff && !g.tbd){
+    return new Intl.DateTimeFormat('en-US', {hour:'numeric', minute:'2-digit', timeZone:'America/New_York'}).format(new Date(g.kickoff)).replace(' ','');
+  }
+  return 'Time TBA';
+}
+
 /** Teams with a game in the coming week, soonest first. Teams without one
  * (bye week, off week, or just tracked for later in the season) don't get a
  * preview card here — there's nothing to preview yet. */
@@ -1037,11 +1047,17 @@ function buildWeekCard(team, g, opts){
   if(isLive){
     const statusLabel = liveStatusLabel(live);
     const badgeText = statusLabel==='HALFTIME' ? 'HALFTIME' : 'LIVE' + (statusLabel ? ` &middot; ${escapeHtml(statusLabel)}` : '');
-    topRight = `<span class="week-card-live-badge"><span class="live-dot"></span>${badgeText}</span>`;
+    const bits = [fmtKickoffTimeOnly(g)];
+    if(g.tv && g.tv !== 'TBA') bits.push(g.tv);
+    if(g.place) bits.push(g.place);
+    topRight = `<span class="week-card-live-badge"><span class="live-dot"></span>${badgeText}</span> &bull; ${bits.map(escapeHtml).join(' &bull; ')}`;
   } else if(isJustFinished || isOfficialFinal){
-    topRight = '<span class="week-card-final-badge">Final</span>';
+    topRight = `<span class="week-card-final-badge">Final</span> &bull; ${escapeHtml(fmtWeekCardDate(g))}`;
   } else if(isDelayed){
-    topRight = '<span class="week-card-delayed-badge"><span class="live-dot delayed-dot"></span>Delayed</span>';
+    const bits = [fmtKickoffTimeOnly(g)];
+    if(g.tv && g.tv !== 'TBA') bits.push(g.tv);
+    if(g.place) bits.push(g.place);
+    topRight = `<span class="week-card-delayed-badge"><span class="live-dot delayed-dot"></span>Delayed</span> &bull; ${bits.map(escapeHtml).join(' &bull; ')}`;
   } else {
     // Pregame: date/time, TV, and location all on one line instead of TV
     // living separately at the bottom of the card.
