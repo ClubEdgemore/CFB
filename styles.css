@@ -310,7 +310,7 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .week-card-side{display:flex;align-items:center;gap:10px;min-width:0;flex:1;}
 .week-card-side img.team-logo{width:30px;height:30px;object-fit:contain;flex:none;}
 .week-card-side-opp{flex-direction:row-reverse;text-align:right;justify-content:flex-start;}
-.week-card-team-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.week-card-team-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;color:var(--ink);}
 .week-card-vs{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--ink-soft);flex:none;padding:0 6px;}
 .week-card-stats-row{
   margin-top:10px;
@@ -339,7 +339,7 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .score-team{display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
 .score-team img.team-logo{width:26px;height:26px;object-fit:contain;flex:none;}
 .score-team-opp{flex-direction:row-reverse;text-align:right;justify-content:flex-start;}
-.score-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.score-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15.5px;color:var(--ink);}
 .score-nums{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;color:var(--ink);flex:none;}
 .score-sep{opacity:.4;font-weight:400;}
 .ball-icon{font-size:12px;flex:none;line-height:1;}
@@ -354,7 +354,7 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
    with max-width:0 to truncate names to a single letter) — the quarter/
    total columns share the rest, staying compact on the right. */
 .q-col-team{width:38%;}
-.quarter-table .q-team{text-align:left;font-weight:600;color:var(--ink-soft);white-space:nowrap;text-overflow:ellipsis;}
+.quarter-table .q-team{text-align:left;font-weight:600;color:var(--ink-soft);}
 .quarter-table .q-total{font-weight:800;color:var(--ink);}
 .quarter-table tr+tr td,.quarter-table tr+tr th{border-top:1px solid var(--line);}
 
