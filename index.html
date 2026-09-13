@@ -828,10 +828,19 @@ function timeOfDayPhrase(kickoffMs){
  *     per overlapping cluster (there's no separate "you have a game"
  *     note for that day — the conflict alert already says so).
  *   - A day with no conflict just gets one "You have a game on <day>!"
- *     note, however many (non-overlapping) games are actually that day. */
+ *     note, however many (non-overlapping) games are actually that day.
+ * A game that's already finished (official result in, or the live doc
+ * itself says "completed") is left out entirely — these alerts are a
+ * heads-up for what's coming (or still underway), not a look back at
+ * Thursday's game once it's over. A card can keep showing that final
+ * score for days (see weekResetMs), but the warning banner shouldn't
+ * linger past the final whistle. */
 function buildWeekAlerts(weekGames){
   const byDay = {};
   weekGames.forEach(({g})=>{
+    const live = liveScores[g.id];
+    const isFinished = !!g.result || (live && live.status === 'completed');
+    if(isFinished) return;
     const dayKey = g.date || 'unknown';
     (byDay[dayKey] = byDay[dayKey] || []).push(g);
   });
