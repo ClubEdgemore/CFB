@@ -309,7 +309,12 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .week-card-matchup-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .week-card-side{display:flex;align-items:center;gap:10px;min-width:0;flex:1;}
 .week-card-side img.team-logo{width:30px;height:30px;object-fit:contain;flex:none;}
-.week-card-side-opp{flex-direction:row-reverse;text-align:right;justify-content:flex-start;}
+/* Plain row + flex-end instead of row-reverse — row-reverse combined with
+   a name that wraps to two lines renders inconsistently on some Android
+   builds (the logo ends up squeezed against the score instead of sitting
+   at the outer edge). Flex-end with normal DOM order (name, then logo)
+   is the more robust way to pack a pair against the right edge. */
+.week-card-side-opp{flex-direction:row;justify-content:flex-end;text-align:right;}
 .week-card-team-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;color:var(--ink);}
 .week-card-vs{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--ink-soft);flex:none;padding:0 6px;}
 .week-card-stats-row{
@@ -338,7 +343,12 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .week-card-score-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .score-team{display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
 .score-team img.team-logo{width:26px;height:26px;object-fit:contain;flex:none;}
-.score-team-opp{flex-direction:row-reverse;text-align:right;justify-content:flex-start;}
+/* Same fix as .week-card-side-opp above: plain row + flex-end instead of
+   row-reverse, which is what was actually causing the logo-overlaps-score
+   bug on Android — row-reverse's DOM order (name, logo, ball) rendered
+   reversed put the logo right next to the score instead of at the outer
+   edge once the name started wrapping to two lines. */
+.score-team-opp{flex-direction:row;justify-content:flex-end;text-align:right;}
 .score-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15.5px;color:var(--ink);}
 .score-nums{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;color:var(--ink);flex:none;}
 .score-sep{opacity:.4;font-weight:400;}
