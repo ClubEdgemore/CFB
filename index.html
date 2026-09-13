@@ -803,6 +803,21 @@ function weekdayNameFor(g){
   return new Intl.DateTimeFormat('en-US', {weekday:'long', timeZone:'America/New_York'}).format(base);
 }
 
+/** A rough, human "when" for a kickoff — used on the conflict alert so
+ * "4 Games Conflict on Saturday!" becomes "...Saturday in the afternoon!",
+ * since a Noon kickoff pileup and a primetime one are different problems.
+ * Buckets are by kickoff hour, Eastern time (same zone as everything else
+ * in the app). Only ever called with a real (non-TBD) kickoff — a cluster
+ * can't exist without one. */
+function timeOfDayPhrase(kickoffMs){
+  const hour = Number(new Intl.DateTimeFormat('en-US', {hour:'numeric', hour12:false, timeZone:'America/New_York'}).format(new Date(kickoffMs)));
+  if(hour < 11) return 'in the morning';
+  if(hour < 13) return 'around noon';
+  if(hour < 17) return 'in the afternoon';
+  if(hour < 21) return 'in the evening';
+  return 'late';
+}
+
 /** Scans "Your CFB Week" for schedule conflicts — two or more tracked
  * teams' games kicking off within 60 minutes of each other, chained (so
  * three games each <60min apart from the next all count as one 4-game
@@ -839,7 +854,7 @@ function buildWeekAlerts(weekGames){
 
     const conflicts = clusters.filter(c=> c.length >= 2);
     if(conflicts.length){
-      conflicts.forEach(c=> alerts.push({type:'conflict', count:c.length, weekday}));
+      conflicts.forEach(c=> alerts.push({type:'conflict', count:c.length, weekday, timeOfDay: timeOfDayPhrase(gameTimeMs(c[0]))}));
     } else {
       alerts.push({type:'single', weekday});
     }
@@ -1196,7 +1211,7 @@ function renderHomepage(board){
       const alertsWrap = document.createElement('div');
       alertsWrap.className = 'week-alerts';
       alertsWrap.innerHTML = alerts.map(a => a.type === 'conflict'
-        ? `<div class="week-alert week-alert-conflict"><span class="week-alert-icon">&#9888;&#65039;</span>${a.count} Games Conflict on ${escapeHtml(a.weekday)}!</div>`
+        ? `<div class="week-alert week-alert-conflict"><span class="week-alert-icon">&#9888;&#65039;</span>${a.count} Games Conflict ${escapeHtml(a.weekday)} ${escapeHtml(a.timeOfDay)}!</div>`
         : `<div class="week-alert week-alert-single"><span class="week-alert-icon">&#128197;</span>You have a game on ${escapeHtml(a.weekday)}!</div>`
       ).join('');
       section.appendChild(alertsWrap);
