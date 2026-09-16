@@ -1188,14 +1188,17 @@ function buildWeekCard(team, g, opts){
     `;
   }
 
-  // "Scoring & Big Plays" feed — team pages only (opts.showPlays), live
-  // games only, and only once there's actually at least one qualifying play
-  // (no empty section on a scoreless game). Collapsed by default; open/
-  // closed state is remembered in playsFeedOpen so re-renders triggered by
-  // the next live-score tick don't silently close it back up on someone
-  // reading through a scoring drive.
+  // "Scoring & Big Plays" feed — team pages only (opts.showPlays), live or
+  // just-finished games only, and only once there's actually at least one
+  // qualifying play (no empty section on a scoreless game). Defaults open
+  // while the game is live (so the action is visible right away) and
+  // defaults closed once it's over (recap still one tap away, but not
+  // shoved in your face) — but once someone actually taps it, that explicit
+  // choice sticks regardless of the game's status from then on, same
+  // "default only applies until touched" rule as the other collapsible
+  // sections on this page.
   let playsHtml = '';
-  if(opts.showPlays && isLive && live && live.plays && live.plays.length){
+  if(opts.showPlays && (isLive || isJustFinished) && live && live.plays && live.plays.length){
     const homeLabel = g.isHome ? team.school : g.opponent;
     const awayLabel = g.isHome ? g.opponent : team.school;
     const rows = live.plays.map(p=>{
@@ -1217,7 +1220,7 @@ function buildWeekCard(team, g, opts){
         </div>
       `;
     }).join('');
-    const feedOpen = !!playsFeedOpen[g.id];
+    const feedOpen = playsFeedOpen[g.id] !== undefined ? playsFeedOpen[g.id] : isLive;
     playsHtml = `
       <div class="plays-feed${feedOpen ? ' open' : ''}">
         <button class="plays-feed-toggle" type="button">
