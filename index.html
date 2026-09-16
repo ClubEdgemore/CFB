@@ -330,9 +330,13 @@ async function persistTeamOrder(){
   }catch(e){ console.error('reorderTeams failed', e); }
 }
 
-/** One live listener per tracked team's schedule (not just the active tab) —
- * needed so the "next game across all your teams" countdown stays accurate
- * even for teams you're not currently looking at. */
+/** Schedules are NOT session-scoped — schedules/{teamId} is one shared,
+ * public schedule per school (same games/scores/TV info for everyone
+ * tracking that school), so this reads from the top level, not sessionRef(),
+ * same pattern as subscribeAllNews below. One live listener per tracked
+ * team's schedule (not just the active tab) — needed so the "next game
+ * across all your teams" countdown stays accurate even for teams you're not
+ * currently looking at. */
 function subscribeAllSchedules(){
   if(!fbDb) return;
   const currentIds = new Set(state.teams.map(t=>t.id));
@@ -347,7 +351,7 @@ function subscribeAllSchedules(){
 
   state.teams.forEach(team=>{
     if(scheduleUnsubs[team.id]) return;
-    scheduleUnsubs[team.id] = sessionRef().collection('schedules').doc(team.id).onSnapshot(doc=>{
+    scheduleUnsubs[team.id] = fbDb.collection('schedules').doc(team.id).onSnapshot(doc=>{
       schedulesByTeam[team.id] = doc.exists ? doc.data() : null;
       recomputeNextGame();
       render();
@@ -808,11 +812,16 @@ function buildWeekGames(){
       // Kickoff time has passed. Keep showing it if there's ANY live-doc
       // entry at all — in_progress, completed, or "scheduled" (CFBD's own
       // signal that this specific game is delayed/hasn't actually started
-      // yet) — buildWeekCard decides how to render each of those. With no
-      // live-doc entry yet, give it a short grace period (the poll runs
-      // every 2 minutes, so there's normally a brief gap right at kickoff)
-      // before rolling it off the list.
-      if(liveScores[x.g.id]) return true;
+      // yet) — buildWeekCard decides how to render each of those. But only
+      // within the current week (same Monday cutoff as above): if the
+      // schedule's own `result` field never gets filled in (a stalled
+      // nightly refresh, or CFBD lag) this is the only thing standing
+      // between a finished game and it staying pinned here forever — so it
+      // needs its own expiration, not just "any live doc, any age". With no
+      // live-doc entry yet, give it a short grace period instead (the poll
+      // runs every 2 minutes, so there's normally a brief gap right at
+      // kickoff) before rolling it off the list.
+      if(liveScores[x.g.id] && now < weekResetMs(t)) return true;
       return (now - t) <= KICKOFF_GRACE_MS;
     })
     .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
