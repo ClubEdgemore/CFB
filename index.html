@@ -150,6 +150,8 @@ let teamsUnsub = null;
 const scheduleUnsubs = {}; // teamId -> unsub fn (one live listener per tracked team)
 const schedulesByTeam = {}; // teamId -> {games, updatedAt}
 const backfillingSchedule = new Set(); // teamId -> in-flight guard, see subscribeAllSchedules
+const playsFeedOpen = {}; // gameId -> bool, remembers open/closed across re-renders (not persisted — live-only data)
+const PLAY_BADGE_CLASS = {TD:'td', FG:'fg', SAFETY:'td', TO:'to', BIG:'big', XP:'fg', '2PT':'fg', SCORE:'big'};
 const newsUnsubs = {}; // teamId -> unsub fn
 const newsByTeam = {}; // teamId -> {school, articles, updatedAt}
 let nationalNews = null; // {label, articles, updatedAt} — shared, not team-scoped
@@ -1186,10 +1188,65 @@ function buildWeekCard(team, g, opts){
     `;
   }
 
+  // "Scoring & Big Plays" feed — team pages only (opts.showPlays), live
+  // games only, and only once there's actually at least one qualifying play
+  // (no empty section on a scoreless game). Collapsed by default; open/
+  // closed state is remembered in playsFeedOpen so re-renders triggered by
+  // the next live-score tick don't silently close it back up on someone
+  // reading through a scoring drive.
+  let playsHtml = '';
+  if(opts.showPlays && isLive && live && live.plays && live.plays.length){
+    const homeLabel = g.isHome ? team.school : g.opponent;
+    const awayLabel = g.isHome ? g.opponent : team.school;
+    const rows = live.plays.map(p=>{
+      const badgeClass = PLAY_BADGE_CLASS[p.badge] || 'big';
+      const playTeamLabel = (p.isHomeTeam === g.isHome) ? team.school : g.opponent;
+      const periodLabel = p.period ? (p.period > 4 ? 'OT' : `Q${p.period}`) : '';
+      const clockStr = fmtClock(p.clockRemaining) || '';
+      const scoreBit = (p.homeScore!==null && p.awayScore!==null)
+        ? `${escapeHtml(homeLabel)} ${p.homeScore}, ${escapeHtml(awayLabel)} ${p.awayScore}` : '';
+      const meta = [[periodLabel, clockStr].filter(Boolean).join(' '), scoreBit].filter(Boolean).join(' &middot; ');
+      return `
+        <div class="play-row">
+          <span class="play-badge ${badgeClass}">${escapeHtml(p.badge)}</span>
+          <div class="play-row-body">
+            <span class="play-team">${escapeHtml(playTeamLabel)}</span>
+            <div class="play-desc">${escapeHtml(p.playText)}</div>
+            <div class="play-meta">${meta}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    const feedOpen = !!playsFeedOpen[g.id];
+    playsHtml = `
+      <div class="plays-feed${feedOpen ? ' open' : ''}">
+        <button class="plays-feed-toggle" type="button">
+          <span>&#127944; Scoring &amp; Big Plays <span class="count">(${live.plays.length})</span></span>
+          <span class="caret">${feedOpen ? '&#9650;' : '&#9660;'}</span>
+        </button>
+        <div class="plays-feed-list">${rows}</div>
+      </div>
+    `;
+  }
+
   card.innerHTML = `
     <div class="week-card-date">${topRight}</div>
     ${lowerHtml}
+    ${playsHtml}
   `;
+
+  if(playsHtml){
+    const toggleBtn = card.querySelector('.plays-feed-toggle');
+    const feedEl = card.querySelector('.plays-feed');
+    toggleBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const nowOpen = !feedEl.classList.contains('open');
+      playsFeedOpen[g.id] = nowOpen;
+      feedEl.classList.toggle('open', nowOpen);
+      toggleBtn.querySelector('.caret').innerHTML = nowOpen ? '&#9650;' : '&#9660;';
+    });
+  }
+
   return card;
 }
 
@@ -1374,7 +1431,7 @@ function renderBoard(){
     board.appendChild(heading);
     const wrap = document.createElement('div');
     wrap.className = 'team-next-game-wrap';
-    wrap.appendChild(buildWeekCard(team, next, {disableClick:true}));
+    wrap.appendChild(buildWeekCard(team, next, {disableClick:true, showPlays:true}));
     board.appendChild(wrap);
   }
 

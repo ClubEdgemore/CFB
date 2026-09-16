@@ -388,6 +388,34 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .quarter-table .q-total{font-weight:800;color:var(--ink);}
 .quarter-table tr+tr td,.quarter-table tr+tr th{border-top:1px solid var(--line);}
 
+/* "Scoring & Big Plays" feed — team pages only, under a live Next Game
+   card. Collapsed by default and capped to a scrollable 260px so a long
+   scoring drive can't push the rest of the page down. */
+.plays-feed{margin-top:2px;border-top:1px solid var(--line);}
+.plays-feed-toggle{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  width:100%;padding:10px 2px;background:none;border:none;cursor:pointer;
+  font-family:inherit;font-size:13px;font-weight:600;color:var(--ink);text-align:left;
+}
+.plays-feed-toggle .count{font-weight:500;color:var(--ink-soft);font-size:12px;margin-left:4px;}
+.plays-feed-list{max-height:0;overflow:hidden;transition:max-height .2s ease;}
+.plays-feed.open .plays-feed-list{max-height:260px;overflow-y:auto;}
+.play-row{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-top:1px solid var(--line);}
+.play-row:first-child{border-top:none;}
+.play-badge{
+  flex:none;min-width:30px;height:22px;padding:0 4px;border-radius:5px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;margin-top:1px;
+}
+.play-badge.td{background:#1d7a3c22;color:var(--win);}
+.play-badge.fg{background:#f5a62322;color:#b3720c;}
+.play-badge.to{background:#c94b4b22;color:#e07a7a;}
+.play-badge.big{background:#5b6bff22;color:#8f9bff;}
+.play-row-body{flex:1;min-width:0;}
+.play-team{font-weight:700;font-size:12.5px;}
+.play-desc{font-size:13px;line-height:1.35;color:var(--ink);}
+.play-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
 .nfy-section h2{
   font-family:'Barlow Condensed',sans-serif;
   font-size:21px;
