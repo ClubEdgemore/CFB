@@ -926,6 +926,14 @@ function timeOfDayPhrase(kickoffMs){
  * Thursday's game once it's over. A card can keep showing that final
  * score for days (see weekResetMs), but the warning banner shouldn't
  * linger past the final whistle. */
+/** One combined heads-up line for the whole week instead of a separate box
+ * per day (or per conflict, on a day with more than one cluster of
+ * overlapping kickoffs) — condenses what used to be several stacked
+ * banners into a single row. Returns null if there's nothing to flag.
+ * A plain "you've got a game" note is skipped for Saturday specifically —
+ * that's the default day for college football, not something worth
+ * flagging — but a Saturday CONFLICT (two tracked games at once) still is,
+ * since that's true regardless of which day it happens to fall on. */
 function buildWeekAlerts(weekGames){
   const byDay = {};
   weekGames.forEach(({g})=>{
@@ -936,11 +944,12 @@ function buildWeekAlerts(weekGames){
     (byDay[dayKey] = byDay[dayKey] || []).push(g);
   });
 
-  const alerts = [];
-  Object.keys(byDay).sort().forEach(dayKey=>{
+  const dayKeys = Object.keys(byDay).sort();
+  if(!dayKeys.length) return null;
+
+  const days = dayKeys.map(dayKey=>{
     const games = byDay[dayKey];
     const weekday = weekdayNameFor(games[0]);
-
     const timed = games.filter(g=> g.kickoff && !g.tbd).sort((a,b)=> gameTimeMs(a)-gameTimeMs(b));
     const clusters = [];
     timed.forEach(g=>{
@@ -951,15 +960,33 @@ function buildWeekAlerts(weekGames){
         clusters.push([g]);
       }
     });
+    return {weekday, conflicts: clusters.filter(c=> c.length >= 2)};
+  }).filter(d=> d.conflicts.length || d.weekday !== 'Saturday');
 
-    const conflicts = clusters.filter(c=> c.length >= 2);
-    if(conflicts.length){
-      conflicts.forEach(c=> alerts.push({type:'conflict', count:c.length, weekday, timeOfDay: timeOfDayPhrase(gameTimeMs(c[0]))}));
-    } else {
-      alerts.push({type:'single', weekday});
+  if(!days.length) return null;
+
+  // Simple, common case — exactly one day worth mentioning, and at most one
+  // conflict cluster that day — keeps the original, friendlier full
+  // sentence instead of the terser multi-day format below.
+  if(days.length === 1){
+    const d = days[0];
+    if(!d.conflicts.length) return {type:'single', text:`You have a game on ${d.weekday}!`};
+    if(d.conflicts.length === 1){
+      const c = d.conflicts[0];
+      return {type:'conflict', text:`${c.length} Games Conflict ${d.weekday} ${timeOfDayPhrase(gameTimeMs(c[0]))}!`};
     }
+  }
+
+  // Multiple days (or one day with several separate conflict clusters) —
+  // one combined, more compact line rather than a box each.
+  const hasAnyConflict = days.some(d=> d.conflicts.length);
+  const fragments = days.map(d=>{
+    const short = d.weekday.slice(0,3);
+    if(!d.conflicts.length) return `${short}: game`;
+    const parts = d.conflicts.map(c=> `${c.length} ${timeOfDayPhrase(gameTimeMs(c[0]))}`);
+    return `${short}: ${parts.join(', ')}`;
   });
-  return alerts;
+  return {type: hasAnyConflict ? 'conflict' : 'single', text: `${fragments.join(' · ')}!`};
 }
 
 /** This team's win chance as a whole percent (0-100) from the game's stored
@@ -1390,14 +1417,12 @@ function renderHomepage(board){
   // Conflict/heads-up alerts are about what's upcoming or live right now —
   // they don't mean anything for a look back at last week's scores.
   if(homeWeekView === 'current'){
-    const alerts = buildWeekAlerts(weekGames);
-    if(alerts.length){
+    const alert = buildWeekAlerts(weekGames);
+    if(alert){
       const alertsWrap = document.createElement('div');
       alertsWrap.className = 'week-alerts';
-      alertsWrap.innerHTML = alerts.map(a => a.type === 'conflict'
-        ? `<div class="week-alert week-alert-conflict"><span class="week-alert-icon">&#9888;&#65039;</span>${a.count} Games Conflict ${escapeHtml(a.weekday)} ${escapeHtml(a.timeOfDay)}!</div>`
-        : `<div class="week-alert week-alert-single"><span class="week-alert-icon">&#128197;</span>You have a game on ${escapeHtml(a.weekday)}!</div>`
-      ).join('');
+      const icon = alert.type === 'conflict' ? '&#9888;&#65039;' : '&#128197;';
+      alertsWrap.innerHTML = `<div class="week-alert week-alert-${alert.type}"><span class="week-alert-icon">${icon}</span>${escapeHtml(alert.text)}</div>`;
       section.appendChild(alertsWrap);
     }
   }

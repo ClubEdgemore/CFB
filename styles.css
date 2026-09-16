@@ -310,9 +310,9 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:10px;
+  gap:8px;
   flex-wrap:wrap;
-  padding:18px 18px 12px;
+  padding:14px 16px 8px;
 }
 .week-section h2{
   font-family:'Barlow Condensed',sans-serif;
@@ -338,13 +338,13 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
    current/upcoming game per team (with last week's final still showing
    through the weekend) and a manual, never-time-gated look back at each
    team's most recent completed game. */
-.week-view-toggle{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:0 18px 14px;}
+.week-view-toggle{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:0 16px 10px;}
 .week-view-group{display:flex;gap:8px;}
 .week-view-btn{
   font-family:'Inter',sans-serif;
   font-size:13px;
   font-weight:600;
-  padding:6px 14px;
+  padding:5px 13px;
   border-radius:20px;
   border:1px solid var(--line);
   background:transparent;
@@ -358,23 +358,25 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 .add-team-btn{border-style:dashed;}
 .add-team-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
 
-.week-list{display:flex;flex-direction:column;gap:10px;padding:18px;}
+.week-list{display:flex;flex-direction:column;gap:10px;padding:16px;}
 .week-view-toggle + .week-list{padding-top:0;}
 
-/* "Your CFB Week" alert banners — a plain heads-up when a tracked team has
-   exactly one game that day, or a louder warning when two or more tracked
-   teams' games kick off within an hour of each other on the same day. */
-.week-alerts{display:flex;flex-direction:column;gap:8px;padding:18px 18px 0;}
+/* "Your CFB Week" alert banner — one combined heads-up line covering every
+   day worth mentioning (a plain "you've got a game" note, or a louder
+   warning once two or more tracked teams' games kick off within an hour of
+   each other), instead of a separate box per day/conflict — see
+   buildWeekAlerts, which now returns one merged summary. */
+.week-alerts{padding:12px 16px 0;}
 .week-view-toggle + .week-alerts{padding-top:0;}
-.week-alerts + .week-list{padding-top:10px;}
+.week-alerts + .week-list{padding-top:8px;}
 .week-alert{
   display:flex;
   align-items:center;
   gap:8px;
-  padding:10px 14px;
+  padding:8px 12px;
   border-radius:8px;
   font-family:'Inter',sans-serif;
-  font-size:13.5px;
+  font-size:13px;
   font-weight:600;
 }
 .week-alert-icon{font-size:14px;line-height:1;flex:none;}
