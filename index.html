@@ -149,6 +149,7 @@ let firebaseUser = null; // signed-in Firebase Auth user, or null if signed out
 let teamsUnsub = null;
 const scheduleUnsubs = {}; // teamId -> unsub fn (one live listener per tracked team)
 const schedulesByTeam = {}; // teamId -> {games, updatedAt}
+const backfillingSchedule = new Set(); // teamId -> in-flight guard, see subscribeAllSchedules
 const newsUnsubs = {}; // teamId -> unsub fn
 const newsByTeam = {}; // teamId -> {school, articles, updatedAt}
 let nationalNews = null; // {label, articles, updatedAt} — shared, not team-scoped
@@ -353,6 +354,18 @@ function subscribeAllSchedules(){
     if(scheduleUnsubs[team.id]) return;
     scheduleUnsubs[team.id] = fbDb.collection('schedules').doc(team.id).onSnapshot(doc=>{
       schedulesByTeam[team.id] = doc.exists ? doc.data() : null;
+      // Self-heal: a currently-tracked team whose shared doc doesn't exist
+      // (e.g. a schema/migration gap, or the doc was somehow never written)
+      // would otherwise sit empty until the next nightly refresh. Whichever
+      // browser notices first triggers a one-off fetch for that school —
+      // guarded so a flood of onSnapshot callbacks (re-logins, reconnects)
+      // can't fire it more than once at a time per team.
+      if(!doc.exists && fbFns && !backfillingSchedule.has(team.id)){
+        backfillingSchedule.add(team.id);
+        fbFns.httpsCallable('backfillSchedule')({ school: team.school, year: team.year })
+          .catch(err=>console.error('backfillSchedule failed', err))
+          .finally(()=>backfillingSchedule.delete(team.id));
+      }
       recomputeNextGame();
       render();
     }, err=>console.error('schedule snapshot error', err));
