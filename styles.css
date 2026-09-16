@@ -272,14 +272,34 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   white-space:nowrap;
 }
 .shop-link:hover{color:var(--ink);border-color:var(--ink-soft);}
+
+/* "This Week" / "Last Week" toggle — switches "Your CFB Week" between the
+   current/upcoming game per team (with last week's final still showing
+   through the weekend) and a manual, never-time-gated look back at each
+   team's most recent completed game. */
+.week-view-toggle{display:flex;gap:8px;padding:0 18px 14px;}
+.week-view-btn{
+  font-family:'Inter',sans-serif;
+  font-size:13px;
+  font-weight:600;
+  padding:6px 14px;
+  border-radius:20px;
+  border:1px solid var(--line);
+  background:transparent;
+  color:var(--ink-soft);
+  cursor:pointer;
+}
+.week-view-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
+.week-view-btn.active{background:var(--ink);color:var(--stone);border-color:var(--ink);}
+
 .week-list{display:flex;flex-direction:column;gap:10px;padding:18px;}
-.week-section-head + .week-list{padding-top:0;}
+.week-view-toggle + .week-list{padding-top:0;}
 
 /* "Your CFB Week" alert banners — a plain heads-up when a tracked team has
    exactly one game that day, or a louder warning when two or more tracked
    teams' games kick off within an hour of each other on the same day. */
 .week-alerts{display:flex;flex-direction:column;gap:8px;padding:18px 18px 0;}
-.week-section-head + .week-alerts{padding-top:0;}
+.week-view-toggle + .week-alerts{padding-top:0;}
 .week-alerts + .week-list{padding-top:10px;}
 .week-alert{
   display:flex;

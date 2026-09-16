@@ -160,6 +160,13 @@ let addingTeam = false;
 let addBusy = false;
 let addMsg = '';
 
+/** "Your CFB Week" toggle — 'current' (this week's games, live/upcoming,
+ * with last week's final still showing through the automatic Monday
+ * reset below) or 'last' (every tracked team's most recent completed
+ * game, no matter how long ago — a manual look-back, not time-gated).
+ * Remembered per-browser so it doesn't reset to 'current' on every visit. */
+let homeWeekView = lsGet('cfb-home-week-view') === 'last' ? 'last' : 'current';
+
 /** Signed in: your Firebase Auth uid, so your list follows you across
  * devices. Signed out: the per-browser guest id from getSessionId(). */
 function activeNamespaceId(){
@@ -750,23 +757,38 @@ const KICKOFF_GRACE_MS = 6*60*1000;
  * goes live any time before that, it just shows Live like normal. */
 const DELAYED_GRACE_MS = 10*60*1000;
 
-/** The next Tuesday at 6am (viewer's own local time — plenty good enough
+/** The next Monday at 6am (viewer's own local time — plenty good enough
  * for this soft UX threshold, no timezone math needed) on or after a game's
- * kickoff. That's the "week reset" point: a finished game's card keeps
- * showing its final score in "Your CFB Week" all the way through it, so
- * someone who was out celebrating (or commiserating) on Saturday can still
- * pull it up Sunday morning — instead of it vanishing the instant the
- * nightly refresh marks the game complete. */
+ * kickoff. That's the automatic "week reset" point for the default
+ * ('current') view — a finished game's card keeps showing its final score
+ * in "Your CFB Week" all the way through the weekend, so someone who was
+ * out celebrating (or commiserating) on Saturday can still pull it up
+ * Sunday. Once Monday hits, the default view moves on to previewing the
+ * next game — but the old result is never actually gone, just a tap away
+ * via the "Last Week" toggle (see buildWeekGames). */
 function weekResetMs(kickoffMs){
   const d = new Date(kickoffMs);
   d.setHours(6,0,0,0);
-  while(d.getDay() !== 2 || d.getTime() <= kickoffMs){
+  while(d.getDay() !== 1 || d.getTime() <= kickoffMs){
     d.setDate(d.getDate()+1);
   }
   return d.getTime();
 }
 
+/** "Your CFB Week" data for whichever view is active:
+ *   - 'last': every tracked team's most recent COMPLETED game, full stop —
+ *     a manual look-back the viewer asked for, so no time gating at all.
+ *   - 'current' (default): each team's game for the current week — still
+ *     showing last week's final through the weekend (weekResetMs above),
+ *     then rolling over to the upcoming/live one once Monday hits. */
 function buildWeekGames(){
+  if(homeWeekView === 'last'){
+    return state.teams
+      .map(team=> ({team, g: mostRecentCompletedGame(team)}))
+      .filter(x=> !!x.g)
+      .sort((a,b)=> gameTimeMs(b.g) - gameTimeMs(a.g)); // most recent first
+  }
+
   const ONE_WEEK = 7*24*60*60*1000;
   const now = Date.now();
   return state.teams
@@ -1204,17 +1226,32 @@ function renderHomepage(board){
     return;
   }
 
-  const weekGames = buildWeekGames();
-  if(weekGames.length){
-    const section = document.createElement('div');
-    section.className = 'week-section';
-    section.innerHTML = `
-      <div class="week-section-head">
-        <h2><img src="schedule-icon.png" alt="" class="section-icon">Your CFB Week:</h2>
-        <a class="shop-link" href="https://fanatics.93n6tx.net/E0Pzz4" target="_blank" rel="noopener sponsored">Shop Game Day Gear @ Fanatics</a>
-      </div>
-    `;
+  const section = document.createElement('div');
+  section.className = 'week-section';
+  section.innerHTML = `
+    <div class="week-section-head">
+      <h2><img src="schedule-icon.png" alt="" class="section-icon">Your CFB Week:</h2>
+      <a class="shop-link" href="https://fanatics.93n6tx.net/E0Pzz4" target="_blank" rel="noopener sponsored">Shop Game Day Gear @ Fanatics</a>
+    </div>
+    <div class="week-view-toggle" role="tablist">
+      <button type="button" class="week-view-btn${homeWeekView==='current' ? ' active' : ''}" data-view="current" role="tab" aria-selected="${homeWeekView==='current'}">This Week</button>
+      <button type="button" class="week-view-btn${homeWeekView==='last' ? ' active' : ''}" data-view="last" role="tab" aria-selected="${homeWeekView==='last'}">Last Week</button>
+    </div>
+  `;
+  section.querySelectorAll('.week-view-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(homeWeekView === btn.dataset.view) return;
+      homeWeekView = btn.dataset.view;
+      lsSet('cfb-home-week-view', homeWeekView);
+      render();
+    });
+  });
 
+  const weekGames = buildWeekGames();
+
+  // Conflict/heads-up alerts are about what's upcoming or live right now —
+  // they don't mean anything for a look back at last week's scores.
+  if(homeWeekView === 'current'){
     const alerts = buildWeekAlerts(weekGames);
     if(alerts.length){
       const alertsWrap = document.createElement('div');
@@ -1225,14 +1262,21 @@ function renderHomepage(board){
       ).join('');
       section.appendChild(alertsWrap);
     }
+  }
 
+  if(weekGames.length){
     const list = document.createElement('div');
     list.className = 'week-list';
     weekGames.forEach(({team,g})=> list.appendChild(buildWeekCard(team,g)));
     section.appendChild(list);
-    board.appendChild(section);
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'sched-section-empty';
+    empty.textContent = homeWeekView === 'last' ? 'No completed games yet.' : 'No games this week.';
+    section.appendChild(empty);
   }
 
+  board.appendChild(section);
   renderNewsForYou(board);
 }
 
