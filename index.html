@@ -44,6 +44,7 @@
 
   <div class="next-game" id="nextGameBanner" style="display:none;"></div>
 
+  <button type="button" class="home-banner" id="homeBanner"></button>
   <div class="tabs" id="tabs"></div>
   <div class="board" id="board"></div>
 
@@ -513,15 +514,52 @@ document.getElementById('mastheadLogo').addEventListener('keydown', (e)=>{
   if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goHome(); }
 });
 
+/** The homepage — "Your CFB Week" — is where this app actually earns its
+ * keep (a live feed of only your teams, nobody else's), so it gets its own
+ * full-width, always-visible button up top instead of competing for space
+ * as just one more tab alongside every team. The click listener is static,
+ * set up once here on the element itself (innerHTML replaces its children
+ * every render, which doesn't touch a listener bound to the parent), but
+ * its content is rebuilt each render — the badge/live-count are live data. */
+const homeBanner = document.getElementById('homeBanner');
+homeBanner.addEventListener('click', goHome);
+
+function openAddTeamPanel(){ addingTeam = true; addMsg=''; render(); }
+
+/** How many of this week's tracked-team games are live right now, and how
+ * many haven't kicked off yet — shown on the home banner itself so "there's
+ * a game on" is visible without clicking in. Same current-week game per
+ * team as "Your CFB Week", and the same isLive rule buildWeekCard uses. */
+function homeBannerCounts(){
+  let live = 0, upcoming = 0;
+  buildCurrentWeekEntries().forEach(({g})=>{
+    const liveDoc = liveScores[g.id];
+    if(liveDoc && liveDoc.status === 'in_progress'){ live++; return; }
+    const isJustFinished = liveDoc && liveDoc.status === 'completed';
+    const isOfficialFinal = !liveDoc && !!g.result;
+    if(isJustFinished || isOfficialFinal) return; // already over, not "upcoming"
+    upcoming++; // pregame or delayed
+  });
+  return {live, upcoming};
+}
+
 function renderTabs(){
+  homeBanner.classList.toggle('active', state.activeTeam === '__home__');
+
+  const {live, upcoming} = state.teams.length ? homeBannerCounts() : {live:0, upcoming:0};
+  const upcomingHtml = upcoming > 0
+    ? `<span class="home-banner-badge">${upcoming} Upcoming Game${upcoming===1?'':'s'}</span>` : '';
+  const liveHtml = live > 0
+    ? `<span class="home-banner-live"><span class="live-dot"></span>&#127944; ${live>1?`${live} Live`:'Live'}</span>` : '';
+  homeBanner.innerHTML = `
+    <img src="logo-icon.png" alt="" class="home-banner-icon">
+    <span class="home-banner-label">Home</span>
+    ${upcomingHtml}
+    ${liveHtml}
+  `;
+
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = '';
-
-  const homeTab = document.createElement('div');
-  homeTab.className = 'tab home-tab' + (state.activeTeam === '__home__' ? ' active' : '');
-  homeTab.innerHTML = `<img src="logo-icon.png" alt="" style="width:20px;height:20px;object-fit:contain;"><span>Home</span>`;
-  homeTab.addEventListener('click', goHome);
-  tabs.appendChild(homeTab);
 
   state.teams.forEach(team=>{
     const tab = document.createElement('div');
@@ -570,7 +608,7 @@ function renderTabs(){
   const addBtn = document.createElement('div');
   addBtn.className = 'tab-add';
   addBtn.textContent = '+ Add team';
-  addBtn.addEventListener('click', ()=>{ addingTeam = true; addMsg=''; render(); });
+  addBtn.addEventListener('click', openAddTeamPanel);
   tabs.appendChild(addBtn);
 }
 
@@ -794,20 +832,12 @@ function weekResetMs(kickoffMs){
   return d.getTime();
 }
 
-/** "Your CFB Week" data for whichever view is active:
- *   - 'last': every tracked team's most recent COMPLETED game, full stop —
- *     a manual look-back the viewer asked for, so no time gating at all.
- *   - 'current' (default): each team's game for the current week — still
- *     showing last week's final through the weekend (weekResetMs above),
- *     then rolling over to the upcoming/live one once Monday hits. */
-function buildWeekGames(){
-  if(homeWeekView === 'last'){
-    return state.teams
-      .map(team=> ({team, g: mostRecentCompletedGame(team)}))
-      .filter(x=> !!x.g)
-      .sort((a,b)=> gameTimeMs(b.g) - gameTimeMs(a.g)); // most recent first
-  }
-
+/** The current-week {team,g} entries — same "still-within-its-week" rules
+ * buildWeekGames uses for its default ('current') view, pulled out on its
+ * own so the home banner's live/upcoming counts can use the exact same
+ * definition of "this week's game" without depending on whatever the
+ * This Week/Last Week toggle happens to be set to. */
+function buildCurrentWeekEntries(){
   const ONE_WEEK = 7*24*60*60*1000;
   const now = Date.now();
   return state.teams
@@ -838,8 +868,23 @@ function buildWeekGames(){
       // kickoff) before rolling it off the list.
       if(liveScores[x.g.id] && now < weekResetMs(t)) return true;
       return (now - t) <= KICKOFF_GRACE_MS;
-    })
-    .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
+    });
+}
+
+/** "Your CFB Week" data for whichever view is active:
+ *   - 'last': every tracked team's most recent COMPLETED game, full stop —
+ *     a manual look-back the viewer asked for, so no time gating at all.
+ *   - 'current' (default): each team's game for the current week — still
+ *     showing last week's final through the weekend (weekResetMs above),
+ *     then rolling over to the upcoming/live one once Monday hits. */
+function buildWeekGames(){
+  if(homeWeekView === 'last'){
+    return state.teams
+      .map(team=> ({team, g: mostRecentCompletedGame(team)}))
+      .filter(x=> !!x.g)
+      .sort((a,b)=> gameTimeMs(b.g) - gameTimeMs(a.g)); // most recent first
+  }
+  return buildCurrentWeekEntries().sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
 }
 
 /** Full weekday name (e.g. "Saturday") for a game's kickoff — falls back to
@@ -1304,7 +1349,14 @@ function renderNewsForYou(board){
 
 function renderHomepage(board){
   if(!state.teams.length){
-    board.innerHTML = '<div class="empty">Add a team to see its news here.</div>';
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.innerHTML = `
+      Add a team to see its news here.<br><br>
+      <button type="button" class="week-view-btn add-team-btn">+ Team</button>
+    `;
+    empty.querySelector('.add-team-btn').addEventListener('click', openAddTeamPanel);
+    board.appendChild(empty);
     return;
   }
 
@@ -1316,11 +1368,14 @@ function renderHomepage(board){
       <a class="shop-link" href="https://fanatics.93n6tx.net/E0Pzz4" target="_blank" rel="noopener sponsored">Shop Game Day Gear @ Fanatics</a>
     </div>
     <div class="week-view-toggle" role="tablist">
-      <button type="button" class="week-view-btn${homeWeekView==='current' ? ' active' : ''}" data-view="current" role="tab" aria-selected="${homeWeekView==='current'}">This Week</button>
-      <button type="button" class="week-view-btn${homeWeekView==='last' ? ' active' : ''}" data-view="last" role="tab" aria-selected="${homeWeekView==='last'}">Last Week</button>
+      <div class="week-view-group">
+        <button type="button" class="week-view-btn${homeWeekView==='current' ? ' active' : ''}" data-view="current" role="tab" aria-selected="${homeWeekView==='current'}">This Week</button>
+        <button type="button" class="week-view-btn${homeWeekView==='last' ? ' active' : ''}" data-view="last" role="tab" aria-selected="${homeWeekView==='last'}">Last Week</button>
+      </div>
+      <button type="button" class="week-view-btn add-team-btn">+ Team</button>
     </div>
   `;
-  section.querySelectorAll('.week-view-btn').forEach(btn=>{
+  section.querySelectorAll('.week-view-btn[data-view]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       if(homeWeekView === btn.dataset.view) return;
       homeWeekView = btn.dataset.view;
@@ -1328,6 +1383,7 @@ function renderHomepage(board){
       render();
     });
   });
+  section.querySelector('.add-team-btn').addEventListener('click', openAddTeamPanel);
 
   const weekGames = buildWeekGames();
 

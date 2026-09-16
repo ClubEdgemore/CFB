@@ -161,6 +161,68 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   white-space:nowrap;
 }
 
+/* Full-width, always-on-top button to the homepage — "Your CFB Week" (only
+   your teams, live) is what actually sets this app apart, so it gets top
+   billing instead of competing for space as just one more tab next to every
+   team. Team tabs (the .tabs strip below) keep their existing scroll/drag
+   behavior unchanged, just without Home mixed in anymore. */
+.home-banner{
+  position:relative;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  width:100%;
+  padding:14px;
+  margin-bottom:14px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:var(--card);
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;
+  font-size:19px;
+  letter-spacing:.01em;
+  color:var(--ink-soft);
+  cursor:pointer;
+  /* Same dimming convention as an inactive team tab (.tab.team-tab) —
+     grayed out when you're not on Home, full strength when you are. */
+  opacity:0.62;
+}
+.home-banner:hover{color:var(--ink);border-color:var(--ink-soft);}
+/* Active state: full-strength neutral gray (not a color) plus the same
+   "white underline" the team tabs use (box-shadow:0 3px 0 var(--ink)) so
+   Home reads as selected the same way a team tab does. */
+.home-banner.active{
+  opacity:1;
+  color:var(--ink);
+  background:#454B59;
+  border-color:#454B59;
+  box-shadow:0 3px 0 var(--ink);
+}
+.home-banner-icon{width:24px;height:24px;object-fit:contain;flex:none;}
+.home-banner-label{flex:none;}
+/* Upcoming-game count and live indicator — small pills next to the label,
+   part of the same centered flex group (no extra positioning needed, the
+   button's own justify-content:center keeps icon+label+badges centered as
+   one unit). currentColor on both the text and the live-dot means they
+   automatically read correctly in both the inactive (dark card) and active
+   (solid green) states without a separate color override per state. */
+.home-banner-badge, .home-banner-live{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-family:'Inter',sans-serif;
+  font-size:12px;
+  font-weight:700;
+  padding:3px 10px;
+  border-radius:20px;
+  background:rgba(255,255,255,0.1);
+  color:inherit;
+  white-space:nowrap;
+}
+.home-banner-live .live-dot{background:currentColor;}
+
 .tabs{
   display:flex;
   flex-wrap:wrap;
@@ -185,7 +247,6 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
   user-select:none;
   min-height:44px;
 }
-.tab.home-tab.active{background:var(--card);color:var(--ink);box-shadow:0 3px 0 var(--ink);}
 /* Team tabs get their real team color as an actual background (set inline
    per-team via JS, with an auto-computed readable text color), not just a
    small dot — dimmed slightly when inactive, full-strength when active. */
@@ -277,7 +338,8 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
    current/upcoming game per team (with last week's final still showing
    through the weekend) and a manual, never-time-gated look back at each
    team's most recent completed game. */
-.week-view-toggle{display:flex;gap:8px;padding:0 18px 14px;}
+.week-view-toggle{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:0 18px 14px;}
+.week-view-group{display:flex;gap:8px;}
 .week-view-btn{
   font-family:'Inter',sans-serif;
   font-size:13px;
@@ -291,6 +353,10 @@ button, .tab, .tab-add, .del-row, .close{touch-action:manipulation;}
 }
 .week-view-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
 .week-view-btn.active{background:var(--ink);color:var(--stone);border-color:var(--ink);}
+/* "+ Team" reuses the same pill shape but a dashed border, matching the
+   .tab-add affordance elsewhere — it's an action, not a state toggle. */
+.add-team-btn{border-style:dashed;}
+.add-team-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
 
 .week-list{display:flex;flex-direction:column;gap:10px;padding:18px;}
 .week-view-toggle + .week-list{padding-top:0;}
