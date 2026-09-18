@@ -125,6 +125,18 @@ function lsGet(key){ try{ return localStorage.getItem(key); }catch(e){ return nu
 function lsSet(key,val){ try{ localStorage.setItem(key,val); }catch(e){} }
 function lsDel(key){ try{ localStorage.removeItem(key); }catch(e){} }
 
+/** Fires a GA4 custom event — used to answer the "what should we prioritize"
+ * questions the built-in Active users / Events reports can't: which teams
+ * get added, whether people actually click into a team page once it's
+ * added, and which collapsible sections/feeds they open. `gtag` is defined
+ * synchronously by the inline stub in <head> (it just queues calls until
+ * the real script loads), so this is safe to call from anywhere, anytime —
+ * still wrapped in try/catch so an ad-blocker blocking GA can never break
+ * the app itself. See SETUP.md for how to actually see these in GA4. */
+function trackEvent(name, params){
+  try{ if(typeof gtag === 'function') gtag('event', name, params||{}); }catch(e){}
+}
+
 /* ---------------- per-browser session ----------------
    Each visitor gets their own private, isolated list of teams — like a
    separate karaoke room per device — instead of one shared global list.
@@ -575,6 +587,7 @@ function renderTabs(){
     tab.innerHTML = `${logoHtml}<span>${escapeHtml(team.school)}</span>${rankBadge(team.rank)}<span class="close" data-remove="${team.id}" title="Remove team">&times;</span>`;
     tab.addEventListener('click', (e)=>{
       if(e.target.dataset.remove){ e.stopPropagation(); removeTeam(e.target.dataset.remove); return; }
+      if(state.activeTeam !== team.id) trackEvent('view_team', { school: team.school, source: 'tab' });
       state.activeTeam = team.id; addingTeam=false; lsSet('cfb-active-team', team.id);
       render(); // schedule for every team is already subscribed; no re-fetch needed
     });
@@ -1180,6 +1193,7 @@ function buildWeekCard(team, g, opts){
   if(!opts.disableClick){
     card.title = `See ${team.school}'s full schedule`;
     card.addEventListener('click', ()=>{
+      trackEvent('view_team', { school: team.school, source: 'homepage_card' });
       state.activeTeam = team.id; addingTeam=false; lsSet('cfb-active-team', team.id);
       render();
     });
@@ -1260,14 +1274,17 @@ function buildWeekCard(team, g, opts){
     `;
   }
 
-  // "Scoring & Big Plays" feed — team pages only (opts.showPlays), live or
-  // just-finished games only, and only once there's actually at least one
-  // qualifying play (no empty section on a scoreless game). Defaults open
-  // while the game is live (so the action is visible right away) and
-  // defaults closed once it's over (recap still one tap away, but not
-  // shoved in your face) — but once someone actually taps it, that explicit
-  // choice sticks regardless of the game's status from then on, same
-  // "default only applies until touched" rule as the other collapsible
+  // "Scoring & Big Plays" feed — opt-in via opts.showPlays (both the
+  // homepage's week-cards and a team page's Next Game card turn it on now),
+  // live or just-finished games only, and only once there's actually at
+  // least one qualifying play (no empty section on a scoreless game). Team
+  // pages default open while the game is live (opts.playsCollapsedByDefault
+  // is unset there) so the action is visible right away, and closed once
+  // it's over; the homepage always defaults closed (playsCollapsedByDefault
+  // is set on that call) since a running feed would balloon a page meant to
+  // stay a compact one-line-per-team overview. Either way, once someone
+  // actually taps it open/closed, that explicit choice sticks from then on,
+  // same "default only applies until touched" rule as the other collapsible
   // sections on this page.
   let playsHtml = '';
   if(opts.showPlays && (isLive || isJustFinished) && live && live.plays && live.plays.length){
@@ -1277,7 +1294,7 @@ function buildWeekCard(team, g, opts){
       const badgeClass = PLAY_BADGE_CLASS[p.badge] || 'big';
       const playTeamLabel = (p.isHomeTeam === g.isHome) ? team.school : g.opponent;
       const periodLabel = p.period ? (p.period > 4 ? 'OT' : `Q${p.period}`) : '';
-      const clockStr = fmtClock(p.clockRemaining) || '';
+      const clockStr = fmtClock(p.clock) || '';
       const scoreBit = (p.homeScore!==null && p.awayScore!==null)
         ? `${escapeHtml(homeLabel)} ${p.homeScore}, ${escapeHtml(awayLabel)} ${p.awayScore}` : '';
       const meta = [[periodLabel, clockStr].filter(Boolean).join(' '), scoreBit].filter(Boolean).join(' &middot; ');
@@ -1292,7 +1309,13 @@ function buildWeekCard(team, g, opts){
         </div>
       `;
     }).join('');
-    const feedOpen = playsFeedOpen[g.id] !== undefined ? playsFeedOpen[g.id] : isLive;
+    // Team pages default open while live (the whole point is seeing the
+    // action as it happens there); the homepage default stays collapsed
+    // regardless — one line per team is the point of that view, so a big
+    // scoring feed shouldn't balloon it open by default. Either way, once
+    // someone actually taps it, their choice sticks (see playsFeedOpen).
+    const defaultOpen = opts.playsCollapsedByDefault ? false : isLive;
+    const feedOpen = playsFeedOpen[g.id] !== undefined ? playsFeedOpen[g.id] : defaultOpen;
     playsHtml = `
       <div class="plays-feed${feedOpen ? ' open' : ''}">
         <button class="plays-feed-toggle" type="button">
@@ -1319,6 +1342,7 @@ function buildWeekCard(team, g, opts){
       playsFeedOpen[g.id] = nowOpen;
       feedEl.classList.toggle('open', nowOpen);
       toggleBtn.querySelector('.caret').innerHTML = nowOpen ? '&#9650;' : '&#9660;';
+      trackEvent('toggle_plays_feed', { school: team.school, state: nowOpen ? 'expanded' : 'collapsed', source: opts.playsCollapsedByDefault ? 'homepage' : 'team_page' });
     });
   }
 
@@ -1430,7 +1454,7 @@ function renderHomepage(board){
   if(weekGames.length){
     const list = document.createElement('div');
     list.className = 'week-list';
-    weekGames.forEach(({team,g})=> list.appendChild(buildWeekCard(team,g)));
+    weekGames.forEach(({team,g})=> list.appendChild(buildWeekCard(team,g,{showPlays:true, playsCollapsedByDefault:true})));
     section.appendChild(list);
   } else {
     const empty = document.createElement('div');
@@ -1587,6 +1611,7 @@ function buildCollapsibleSection(board, team, key, headingHtml, buildContent, de
     lsSet(storageKey, collapsed ? '1' : '0');
     heading.classList.toggle('collapsed', collapsed);
     content.hidden = collapsed;
+    trackEvent('toggle_section', { section: key, school: team.school, state: collapsed ? 'collapsed' : 'expanded' });
   });
 
   board.appendChild(heading);
@@ -1713,6 +1738,7 @@ function buildNewTeamPanel(){
     try{
       const addTeam = fbFns.httpsCallable('addTeam');
       const res = await addTeam({ school: name, year: currentSeasonYear(), sessionId: SESSION_ID });
+      trackEvent('add_team', { school: res.data.school || name, team_count: state.teams.length + 1 });
       state.activeTeam = res.data.teamId;
       lsSet('cfb-active-team', res.data.teamId);
       addingTeam = false; addBusy = false; addMsg = '';
@@ -1734,8 +1760,10 @@ function buildNewTeamPanel(){
 
 async function removeTeam(id){
   if(!fbFns) return;
+  const team = state.teams.find(t=>t.id===id);
   try{
     await fbFns.httpsCallable('removeTeam')({ teamId: id, sessionId: SESSION_ID });
+    trackEvent('remove_team', { school: team ? team.school : id });
   }catch(e){ console.error('removeTeam failed', e); }
 }
 
