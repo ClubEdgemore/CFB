@@ -171,6 +171,7 @@ let nationalNews = null; // {label, articles, updatedAt} — shared, not team-sc
 let nationalNewsUnsub = null;
 let liveScores = {}; // gameId -> {status, period, clock, possession, homePoints, awayPoints, homeLineScores, awayLineScores}
 let liveScoresUnsub = null;
+let liveScoresInitialized = false; // guards against firing 'kickoff' for games already live on first load
 let nextGameTarget = null; // {team, g} — the soonest upcoming game across all tracked teams
 let addingTeam = false;
 let addBusy = false;
@@ -181,7 +182,7 @@ let addMsg = '';
  * reset below) or 'last' (every tracked team's most recent completed
  * game, no matter how long ago — a manual look-back, not time-gated).
  * Remembered per-browser so it doesn't reset to 'current' on every visit. */
-let homeWeekView = lsGet('cfb-home-week-view') === 'last' ? 'last' : 'current';
+let homeWeekView = ['last','next'].includes(lsGet('cfb-home-week-view')) ? lsGet('cfb-home-week-view') : 'current';
 
 /** Signed in: your Firebase Auth uid, so your list follows you across
  * devices. Signed out: the per-browser guest id from getSessionId(). */
@@ -405,9 +406,30 @@ function subscribeNationalNews(){
 function subscribeLiveScores(){
   if(!fbDb || liveScoresUnsub) return;
   liveScoresUnsub = fbDb.collection('live').doc('scoreboard').onSnapshot(doc=>{
-    liveScores = (doc.exists && doc.data().games) || {};
+    const nextGames = (doc.exists && doc.data().games) || {};
+    if(liveScoresInitialized) detectKickoffs(liveScores, nextGames);
+    liveScoresInitialized = true;
+    liveScores = nextGames;
     render();
   }, err=>console.error('live scores snapshot error', err));
+}
+
+/** Fires a one-time 'kickoff' GA4 event the moment a tracked team's current
+ * game flips to in_progress — compares this live-scoreboard snapshot to the
+ * previous one (rather than checking status on every render) so it fires
+ * exactly once per game, right as it goes live. Skipped on the very first
+ * snapshot after page load so an already-in-progress game doesn't get
+ * misreported as just kicking off. */
+function detectKickoffs(prevGames, nextGames){
+  state.teams.forEach(team=>{
+    const g = nextGameForTeam(team);
+    if(!g) return;
+    const prevStatus = (prevGames[g.id] || {}).status;
+    const nextStatus = (nextGames[g.id] || {}).status;
+    if(nextStatus === 'in_progress' && prevStatus !== 'in_progress'){
+      trackEvent('kickoff', {school: team.school, gameId: g.id});
+    }
+  });
 }
 
 /** News is NOT session-scoped — newsCache/{teamId} is one shared, public
@@ -762,6 +784,24 @@ function nextGameForTeam(team){
   return best;
 }
 
+/** A team's upcoming (not-yet-played, non-bye) games, soonest first — used
+ * to look one game further ahead than nextGameForTeam for the homepage's
+ * "Next Week" preview. */
+function upcomingGamesForTeam(team){
+  const sched = schedulesByTeam[team.id];
+  if(!sched || !sched.games) return [];
+  return sched.games
+    .filter(g=> !g.bye && !g.result && g.date)
+    .sort((a,b)=> gameTimeMs(a) - gameTimeMs(b));
+}
+
+/** The game right after a team's next one — "Next Week" on the homepage,
+ * so people can see what's coming up beyond this week's game at a glance. */
+function nextWeekGameForTeam(team){
+  const upcoming = upcomingGamesForTeam(team);
+  return upcoming.length > 1 ? upcoming[1] : null;
+}
+
 /** A team's most recently completed game (official result, from nightly
  * refresh) — used by "Your CFB Week" to keep a final score up for people
  * checking the morning after, rather than jumping straight to next week's
@@ -889,13 +929,23 @@ function buildCurrentWeekEntries(){
  *     a manual look-back the viewer asked for, so no time gating at all.
  *   - 'current' (default): each team's game for the current week — still
  *     showing last week's final through the weekend (weekResetMs above),
- *     then rolling over to the upcoming/live one once Monday hits. */
+ *     then rolling over to the upcoming/live one once Monday hits.
+ *   - 'next': a heads-up preview of the game after this week's — same idea
+ *     as 'current' but one game further down each team's schedule, so
+ *     someone can glance ahead at what's coming without hunting through
+ *     each team page. */
 function buildWeekGames(){
   if(homeWeekView === 'last'){
     return state.teams
       .map(team=> ({team, g: mostRecentCompletedGame(team)}))
       .filter(x=> !!x.g)
       .sort((a,b)=> gameTimeMs(b.g) - gameTimeMs(a.g)); // most recent first
+  }
+  if(homeWeekView === 'next'){
+    return state.teams
+      .map(team=> ({team, g: nextWeekGameForTeam(team)}))
+      .filter(x=> !!x.g)
+      .sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
   }
   return buildCurrentWeekEntries().sort((a,b)=> gameTimeMs(a.g) - gameTimeMs(b.g));
 }
@@ -1420,8 +1470,9 @@ function renderHomepage(board){
     </div>
     <div class="week-view-toggle" role="tablist">
       <div class="week-view-group">
-        <button type="button" class="week-view-btn${homeWeekView==='current' ? ' active' : ''}" data-view="current" role="tab" aria-selected="${homeWeekView==='current'}">This Week</button>
         <button type="button" class="week-view-btn${homeWeekView==='last' ? ' active' : ''}" data-view="last" role="tab" aria-selected="${homeWeekView==='last'}">Last Week</button>
+        <button type="button" class="week-view-btn${homeWeekView==='current' ? ' active' : ''}" data-view="current" role="tab" aria-selected="${homeWeekView==='current'}">This Week</button>
+        <button type="button" class="week-view-btn${homeWeekView==='next' ? ' active' : ''}" data-view="next" role="tab" aria-selected="${homeWeekView==='next'}">Next Week</button>
       </div>
       <button type="button" class="week-view-btn add-team-btn">+ Team</button>
     </div>
@@ -1459,7 +1510,9 @@ function renderHomepage(board){
   } else {
     const empty = document.createElement('div');
     empty.className = 'sched-section-empty';
-    empty.textContent = homeWeekView === 'last' ? 'No completed games yet.' : 'No games this week.';
+    empty.textContent = homeWeekView === 'last' ? 'No completed games yet.'
+      : homeWeekView === 'next' ? 'No games scheduled next week yet.'
+      : 'No games this week.';
     section.appendChild(empty);
   }
 
@@ -1533,9 +1586,11 @@ function renderBoard(){
   // a countdown added next to the date since there's room for it here.
   const next = nextGameForTeam(team);
   if(next){
+    const nextLive = liveScores[next.id];
+    const isNextLive = nextLive && nextLive.status === 'in_progress';
     const heading = document.createElement('h2');
     heading.className = 'sched-section-h2';
-    heading.textContent = 'Next Game';
+    heading.textContent = isNextLive ? 'Live Game' : 'Next Game';
     board.appendChild(heading);
     const wrap = document.createElement('div');
     wrap.className = 'team-next-game-wrap';
